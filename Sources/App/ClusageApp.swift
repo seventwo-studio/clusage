@@ -34,6 +34,7 @@ struct ClusageApp: App {
                 recordStartupGap()
                 accountStore.refreshAllFromKeychain()
                 tokenUsageStore.refresh()
+                tokenUsageStore.refreshSessions()
                 startPolling()
                 observeAppLifecycle()
                 updateChecker.startIfEnabled()

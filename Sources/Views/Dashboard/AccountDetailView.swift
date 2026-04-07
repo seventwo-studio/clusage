@@ -40,6 +40,7 @@ struct AccountDetailView: View {
 
                 if let tokenUsageStore {
                     TokenInsightsCard(store: tokenUsageStore)
+                    SessionInsightsCard(store: tokenUsageStore)
                 }
 
                 if !snapshots.isEmpty {

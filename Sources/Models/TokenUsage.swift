@@ -54,6 +54,32 @@ struct ModelTokens: Codable, Sendable {
 
 }
 
+/// Per-session summary tracking context compounding and cost growth.
+struct SessionSummary: Codable, Sendable, Identifiable {
+    let id: String // session filename (acts as stable ID)
+    let date: String // "yyyy-MM-dd" of first message
+    var messageCount: Int
+    var costUSD: Double
+    /// Context size (cache_read + cache_write + input) of the first message.
+    var startContextTokens: Int
+    /// Context size of the last message.
+    var endContextTokens: Int
+    /// Peak context size seen in the session.
+    var peakContextTokens: Int
+    var totalOutputTokens: Int
+    var primaryModel: String
+    var durationSeconds: Double?
+
+    /// How much the context grew from start to end.
+    var contextGrowth: Int { endContextTokens - startContextTokens }
+
+    /// Context compounding ratio: how much larger the final context is vs the start.
+    var compoundingRatio: Double {
+        guard startContextTokens > 0 else { return 0 }
+        return Double(endContextTokens) / Double(startContextTokens)
+    }
+}
+
 /// Pricing per million tokens for each model tier.
 enum TokenPricing {
     struct ModelPrice {

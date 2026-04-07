@@ -113,6 +113,108 @@ import Foundation
         return results
     }
 
+    /// Build session summaries by reading complete session JSONL files.
+    /// Only reads top-level session files (not subagents) since subagents are part
+    /// of a parent session. Reads from byte 0 to get full session context.
+    func scanSessions(since cutoffDate: String) -> [SessionSummary] {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: projectsDir.path) else { return [] }
+
+        var summaries: [SessionSummary] = []
+
+        // Only scan top-level session JSONL files (not subagents)
+        guard let projectDirs = fm.contentsOfDirectory(atPath: projectsDir.path, includingHidden: false) else { return [] }
+
+        for projectName in projectDirs {
+            let projectDir = projectsDir.appendingPathComponent(projectName)
+            guard let contents = fm.contentsOfDirectory(atPath: projectDir.path, includingHidden: false) else { continue }
+            for item in contents where item.hasSuffix(".jsonl") {
+                let fileURL = projectDir.appendingPathComponent(item)
+                let sessionID = String(item.dropLast(6)) // strip .jsonl
+
+                guard let data = try? Data(contentsOf: fileURL),
+                      let text = String(data: data, encoding: .utf8) else { continue }
+
+                var messages: [(model: String, date: String, timestamp: String, context: Int, output: Int, cost: Double)] = []
+
+                for line in text.components(separatedBy: "\n") where !line.isEmpty {
+                    guard let lineData = line.data(using: .utf8),
+                          let entry = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                          entry["type"] as? String == "assistant",
+                          let message = entry["message"] as? [String: Any],
+                          let usageDict = message["usage"] as? [String: Any],
+                          let model = message["model"] as? String,
+                          message["stop_reason"] is String else { continue }
+
+                    let input = usageDict["input_tokens"] as? Int ?? 0
+                    let output = usageDict["output_tokens"] as? Int ?? 0
+                    let cacheRead = usageDict["cache_read_input_tokens"] as? Int ?? 0
+                    let cacheWrite = usageDict["cache_creation_input_tokens"] as? Int ?? 0
+
+                    guard input + output + cacheRead + cacheWrite > 0 else { continue }
+
+                    let timestamp = entry["timestamp"] as? String ?? ""
+                    let date = Self.extractDate(from: timestamp)
+                    let context = input + cacheRead + cacheWrite
+
+                    let price = TokenPricing.price(for: model)
+                    let tokens = ModelTokens(
+                        inputTokens: input, outputTokens: output,
+                        cacheReadInputTokens: cacheRead, cacheCreationInputTokens: cacheWrite
+                    )
+                    let cost = price.cost(for: tokens)
+
+                    messages.append((model: model, date: date, timestamp: timestamp, context: context, output: output, cost: cost))
+                }
+
+                guard !messages.isEmpty else { continue }
+
+                let firstDate = messages.first!.date
+                // Skip sessions older than cutoff
+                guard firstDate >= cutoffDate else { continue }
+
+                // Find primary model (most messages)
+                var modelCounts: [String: Int] = [:]
+                for m in messages { modelCounts[m.model, default: 0] += 1 }
+                let primaryModel = modelCounts.max(by: { $0.value < $1.value })?.key ?? "unknown"
+
+                // Compute duration from timestamps
+                var duration: Double?
+                if messages.count >= 2,
+                   let first = Self.parseISO8601(messages.first!.timestamp),
+                   let last = Self.parseISO8601(messages.last!.timestamp) {
+                    duration = last.timeIntervalSince(first)
+                }
+
+                let summary = SessionSummary(
+                    id: sessionID,
+                    date: firstDate,
+                    messageCount: messages.count,
+                    costUSD: messages.reduce(0) { $0 + $1.cost },
+                    startContextTokens: messages.first!.context,
+                    endContextTokens: messages.last!.context,
+                    peakContextTokens: messages.map(\.context).max() ?? 0,
+                    totalOutputTokens: messages.reduce(0) { $0 + $1.output },
+                    primaryModel: primaryModel,
+                    durationSeconds: duration
+                )
+                summaries.append(summary)
+            }
+        }
+
+        return summaries.sorted { $0.date > $1.date }
+    }
+
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static func parseISO8601(_ string: String) -> Date? {
+        iso8601Formatter.date(from: string) ?? ISO8601DateFormatter().date(from: string)
+    }
+
     /// Reset tracking state, forcing a full re-scan on next call.
     func reset() {
         fileOffsets.removeAll()

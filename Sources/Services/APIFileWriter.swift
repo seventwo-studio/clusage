@@ -82,7 +82,10 @@ struct APIFileWriter {
                 todayTokens: todaySummary?.totalTokens ?? 0,
                 todayMessages: todaySummary?.messageCount ?? 0,
                 averageDailyCostUSD: store.averageDailyCost(lastDays: 7),
-                models: modelBreakdown
+                models: modelBreakdown,
+                averageSessionCostUSD: store.averageSessionCost,
+                averageMessagesPerSession: store.averageMessagesPerSession,
+                averageContextCompounding: store.averageCompoundingRatio
             )
         }
 
@@ -166,6 +169,9 @@ struct APIFileTokenInsights: Codable {
     let todayMessages: Int
     let averageDailyCostUSD: Double
     let models: [String: APIFileModelCost]
+    let averageSessionCostUSD: Double
+    let averageMessagesPerSession: Double
+    let averageContextCompounding: Double
 }
 
 struct APIFileModelCost: Codable {

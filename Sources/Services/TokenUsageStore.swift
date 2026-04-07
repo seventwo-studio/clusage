@@ -5,8 +5,10 @@ import Foundation
 @Observable
 @MainActor final class TokenUsageStore {
     private(set) var dailySummaries: [TokenUsageSummary] = []
+    private(set) var sessionSummaries: [SessionSummary] = []
 
     private let fileURL: URL
+    private let sessionsFileURL: URL
     private let scanner: SessionScanner
 
     private static let dateFormatter: DateFormatter = {
@@ -21,8 +23,10 @@ import Foundation
         let directory = appSupport.appendingPathComponent("Clusage", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         self.fileURL = directory.appendingPathComponent("token-usage.json")
+        self.sessionsFileURL = directory.appendingPathComponent("session-summaries.json")
         self.scanner = scanner
         load()
+        loadSessions()
     }
 
     /// Scan for new session data and merge into daily summaries.
@@ -68,8 +72,60 @@ import Foundation
     /// Full re-scan: clears cached state and re-reads all session files.
     func fullRescan() {
         dailySummaries.removeAll()
+        sessionSummaries.removeAll()
         scanner.reset()
         refresh()
+        refreshSessions()
+    }
+
+    /// Rebuild session summaries from JSONL files for the last 30 days.
+    func refreshSessions() {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: Date())!
+        let cutoffStr = Self.dateFormatter.string(from: cutoff)
+        sessionSummaries = scanner.scanSessions(since: cutoffStr)
+
+        // Prune
+        sessionSummaries.removeAll { $0.date < cutoffStr }
+        saveSessions()
+        Log.tokens.info("Scanned \(self.sessionSummaries.count) session summary(ies)")
+    }
+
+    // MARK: - Session Queries
+
+    /// Average cost per session over the last N days.
+    var averageSessionCost: Double {
+        guard !sessionSummaries.isEmpty else { return 0 }
+        return sessionSummaries.reduce(0) { $0 + $1.costUSD } / Double(sessionSummaries.count)
+    }
+
+    /// Average messages per session.
+    var averageMessagesPerSession: Double {
+        guard !sessionSummaries.isEmpty else { return 0 }
+        return Double(sessionSummaries.reduce(0) { $0 + $1.messageCount }) / Double(sessionSummaries.count)
+    }
+
+    /// Average context compounding ratio across sessions.
+    var averageCompoundingRatio: Double {
+        let valid = sessionSummaries.filter { $0.startContextTokens > 0 }
+        guard !valid.isEmpty else { return 0 }
+        return valid.reduce(0) { $0 + $1.compoundingRatio } / Double(valid.count)
+    }
+
+    /// Sessions for a specific date.
+    func sessions(for date: String) -> [SessionSummary] {
+        sessionSummaries.filter { $0.date == date }
+    }
+
+    /// Sessions from the last N days, sorted newest first.
+    func recentSessions(days n: Int) -> [SessionSummary] {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -(n - 1), to: Date())!
+        let cutoffStr = Self.dateFormatter.string(from: cutoff)
+        return sessionSummaries.filter { $0.date >= cutoffStr }
+    }
+
+    /// The most expensive sessions, limited to N.
+    func mostExpensiveSessions(limit: Int = 5) -> [SessionSummary] {
+        Array(sessionSummaries.sorted { $0.costUSD > $1.costUSD }.prefix(limit))
     }
 
     // MARK: - Queries
@@ -132,6 +188,25 @@ import Foundation
         guard let data = try? JSONEncoder().encode(dailySummaries) else { return }
         try? data.write(to: fileURL, options: .atomic)
         scanner.saveOffsets()
+    }
+
+    func saveSessions() {
+        guard let data = try? JSONEncoder().encode(sessionSummaries) else { return }
+        try? data.write(to: sessionsFileURL, options: .atomic)
+    }
+
+    private func loadSessions() {
+        guard let data = try? Data(contentsOf: sessionsFileURL),
+              let decoded = try? JSONDecoder().decode([SessionSummary].self, from: data) else { return }
+        sessionSummaries = decoded
+        let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: Date())!
+        let cutoffStr = Self.dateFormatter.string(from: cutoff)
+        let before = sessionSummaries.count
+        sessionSummaries.removeAll { $0.date < cutoffStr }
+        if sessionSummaries.count < before {
+            Log.tokens.info("Pruned \(before - self.sessionSummaries.count) stale session summary(ies)")
+            saveSessions()
+        }
     }
 
     private func load() {
