@@ -459,16 +459,12 @@ import Foundation
                 Log.poller.debug("[\(account.name)] Proactive self-refresh failed — continuing with current token")
             }
 
-            guard account.keychainServiceName != nil else {
-                Log.poller.warning("[\(account.name)] No keychain binding — skipping")
-                var updated = account
-                updated.lastError = "No keychain entry linked. Re-link this account to a keychain entry."
-                accountStore.updateAccount(updated)
-                return PollResult(changed: false, rateLimited: false, retryAfter: nil)
-            }
-
             guard let token = accountStore.token(for: account), !token.isEmpty else {
                 throw APIError.httpError(statusCode: 401, body: "No token stored for account")
+            }
+
+            if account.keychainServiceName == nil {
+                Log.poller.debug("[\(account.name)] No keychain binding — token refresh on 401 will be limited")
             }
 
             return try await pollWithToken(token, account: account)
@@ -510,6 +506,9 @@ import Foundation
                 }
             }
             Log.poller.warning("[\(account.name)] All refresh methods failed — token is expired")
+            if account.keychainServiceName == nil {
+                return handlePollErrorWithMessage("Token expired. Re-link this account to a keychain entry or re-add with a fresh token.", account: account)
+            }
             return handlePollError(error, account: account)
         } catch let error as APIError where error.isRateLimited {
             let retryAfter: Double?
@@ -611,14 +610,18 @@ import Foundation
     }
 
     private func handlePollError(_ error: any Error, account: Account) -> PollResult {
+        handlePollErrorWithMessage(error.localizedDescription, account: account)
+    }
+
+    private func handlePollErrorWithMessage(_ message: String, account: Account) -> PollResult {
         let current = failureCounts[account.id] ?? 0
         let newCount = min(current + 1, 5)
         failureCounts[account.id] = newCount
-        Log.poller.error("[\(account.name)] Poll failed (\(newCount) consecutive): \(error.localizedDescription)")
+        Log.poller.error("[\(account.name)] Poll failed (\(newCount) consecutive): \(message)")
 
         // Re-read from store to avoid overwriting fields changed by refresh/poll steps
         var updated = accountStore.accounts.first { $0.id == account.id } ?? account
-        updated.lastError = error.localizedDescription
+        updated.lastError = message
         accountStore.updateAccount(updated)
 
         return PollResult(changed: false, rateLimited: false, retryAfter: nil)

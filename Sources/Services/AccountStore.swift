@@ -147,6 +147,11 @@ import Observation
 
         guard let credential = KeychainManager.fetchClaudeCodeCredential(serviceName: serviceName) else {
             Log.accounts.warning("[\(account.displayName)] Keychain entry '\(serviceName)' not found")
+            // Mark the account so the UI can show a re-link button
+            if let idx = accounts.firstIndex(where: { $0.id == account.id }) {
+                accounts[idx].lastError = "Keychain entry not found. Re-link this account to a keychain entry."
+                saveAccounts()
+            }
             return nil
         }
 
@@ -300,13 +305,20 @@ import Observation
     /// Load each account's token from the Keychain into the in-memory cache.
     private func loadTokensFromKeychain() {
         tokens = [:]
+        var missingCount = 0
         for account in accounts {
             if let token = KeychainManager.loadToken(for: account.id) {
                 tokens[account.id.uuidString] = token
+            } else {
+                missingCount += 1
+                Log.accounts.warning("No keychain token for '\(account.displayName)' (\(account.id.uuidString))")
             }
         }
-        if !tokens.isEmpty {
-            Log.accounts.info("Loaded \(self.tokens.count) token(s) from Keychain")
+        if !accounts.isEmpty {
+            Log.accounts.info("Loaded \(self.tokens.count) of \(self.accounts.count) token(s) from Keychain")
+        }
+        if missingCount > 0 {
+            Log.accounts.warning("\(missingCount) account(s) have no stored token — they will fail on first poll")
         }
     }
 
