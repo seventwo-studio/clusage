@@ -12,7 +12,7 @@ struct APIFileWriter {
         return claudeDir.appendingPathComponent(fileName)
     }
 
-    @MainActor func write(accounts: [Account], momentumProvider: MomentumProvider?) {
+    @MainActor func write(accounts: [Account], momentumProvider: MomentumProvider?, tokenUsageStore: TokenUsageStore? = nil) {
         let accountEntries = accounts.compactMap { account -> APIFileAccount? in
             guard let fiveHour = account.fiveHour, let sevenDay = account.sevenDay else {
                 return nil
@@ -59,10 +59,38 @@ struct APIFileWriter {
             )
         }
 
+        var tokenInsights: APIFileTokenInsights?
+        if let store = tokenUsageStore {
+            let todaySummary = store.today
+            let todayCost = todaySummary.map { store.costForSummary($0) } ?? 0
+            var modelBreakdown: [String: APIFileModelCost] = [:]
+            if let summary = todaySummary {
+                for (model, tokens) in summary.models {
+                    modelBreakdown[model] = APIFileModelCost(
+                        inputTokens: tokens.inputTokens,
+                        outputTokens: tokens.outputTokens,
+                        cacheReadTokens: tokens.cacheReadInputTokens,
+                        cacheWriteTokens: tokens.cacheCreationInputTokens,
+                        costUSD: TokenPricing.cost(model: model, tokens: tokens)
+                    )
+                }
+            }
+            tokenInsights = APIFileTokenInsights(
+                todayCostUSD: todayCost,
+                sevenDayCostUSD: store.cost(lastDays: 7),
+                thirtyDayCostUSD: store.cost(lastDays: 30),
+                todayTokens: todaySummary?.totalTokens ?? 0,
+                todayMessages: todaySummary?.messageCount ?? 0,
+                averageDailyCostUSD: store.averageDailyCost(lastDays: 7),
+                models: modelBreakdown
+            )
+        }
+
         let payload = APIFilePayload(
-            version: 1,
+            version: 2,
             updatedAt: Date(),
-            accounts: accountEntries
+            accounts: accountEntries,
+            tokenInsights: tokenInsights
         )
 
         let encoder = JSONEncoder()
@@ -89,6 +117,7 @@ struct APIFilePayload: Codable {
     let version: Int
     let updatedAt: Date
     let accounts: [APIFileAccount]
+    let tokenInsights: APIFileTokenInsights?
 }
 
 struct APIFileAccount: Codable {
@@ -127,4 +156,22 @@ struct APIFileProjection: Codable {
     let status: String
     let granularSevenDayUtilization: Double?
     let usedCalibratedRatio: Bool
+}
+
+struct APIFileTokenInsights: Codable {
+    let todayCostUSD: Double
+    let sevenDayCostUSD: Double
+    let thirtyDayCostUSD: Double
+    let todayTokens: Int
+    let todayMessages: Int
+    let averageDailyCostUSD: Double
+    let models: [String: APIFileModelCost]
+}
+
+struct APIFileModelCost: Codable {
+    let inputTokens: Int
+    let outputTokens: Int
+    let cacheReadTokens: Int
+    let cacheWriteTokens: Int
+    let costUSD: Double
 }

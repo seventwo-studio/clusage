@@ -6,6 +6,7 @@ struct ClusageApp: App {
     @State private var accountStore = AccountStore()
     @State private var historyStore = UsageHistoryStore()
     @State private var streakStore = StreakStore()
+    @State private var tokenUsageStore = TokenUsageStore()
     @State private var momentumProvider: MomentumProvider?
     @State private var poller: UsagePoller?
     @State private var updateChecker = UpdateChecker()
@@ -32,6 +33,7 @@ struct ClusageApp: App {
             .task {
                 recordStartupGap()
                 accountStore.refreshAllFromKeychain()
+                tokenUsageStore.refresh()
                 startPolling()
                 observeAppLifecycle()
                 updateChecker.startIfEnabled()
@@ -50,7 +52,8 @@ struct ClusageApp: App {
                     historyStore: historyStore,
                     streakStore: streakStore,
                     momentumProvider: momentumProvider,
-                    poller: poller
+                    poller: poller,
+                    tokenUsageStore: tokenUsageStore
                 )
             )
             .onAppear {
@@ -98,6 +101,7 @@ struct ClusageApp: App {
         let pollerRef = poller
         let historyRef = historyStore
         let streakRef = streakStore
+        let tokenRef = tokenUsageStore
         terminationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
             object: nil, queue: .main
@@ -108,6 +112,7 @@ struct ClusageApp: App {
             historyRef.save()
             historyRef.saveGaps()
             streakRef.save()
+            tokenRef.save()
         }
     }
 
@@ -126,7 +131,8 @@ struct ClusageApp: App {
         let newPoller = UsagePoller(
             accountStore: accountStore,
             historyStore: historyStore,
-            momentumProvider: provider
+            momentumProvider: provider,
+            tokenUsageStore: tokenUsageStore
         )
         poller = newPoller
         newPoller.start()

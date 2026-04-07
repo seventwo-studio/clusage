@@ -25,6 +25,7 @@ import Foundation
     private let widgetWriter: WidgetDataWriter
     private let apiFileWriter: APIFileWriter
     let momentumProvider: MomentumProvider?
+    private let tokenUsageStore: TokenUsageStore?
 
     private var pollTimer: Timer?
     private var historyTimer: Timer?
@@ -71,7 +72,8 @@ import Foundation
         apiClient: APIClient = .shared,
         widgetWriter: WidgetDataWriter = WidgetDataWriter(),
         apiFileWriter: APIFileWriter = APIFileWriter(),
-        momentumProvider: MomentumProvider? = nil
+        momentumProvider: MomentumProvider? = nil,
+        tokenUsageStore: TokenUsageStore? = nil
     ) {
         self.accountStore = accountStore
         self.historyStore = historyStore
@@ -79,6 +81,7 @@ import Foundation
         self.widgetWriter = widgetWriter
         self.apiFileWriter = apiFileWriter
         self.momentumProvider = momentumProvider
+        self.tokenUsageStore = tokenUsageStore
     }
 
     /// Track account count to detect when new accounts are added.
@@ -394,7 +397,8 @@ import Foundation
 
         widgetWriter.write(accounts: accountStore.accounts)
         momentumProvider?.refresh()
-        apiFileWriter.write(accounts: accountStore.accounts, momentumProvider: momentumProvider)
+        tokenUsageStore?.refresh()
+        apiFileWriter.write(accounts: accountStore.accounts, momentumProvider: momentumProvider, tokenUsageStore: tokenUsageStore)
 
         let previousState = pollState
         if hitRateLimit {

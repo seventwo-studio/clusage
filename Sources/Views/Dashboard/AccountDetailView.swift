@@ -13,6 +13,7 @@ struct AccountDetailView: View {
     var onScheduleOverride: ((DaySlot?) -> Void)?
     var pollState: UsagePoller.PollState?
     var rateLimitSecondsRemaining: TimeInterval?
+    var tokenUsageStore: TokenUsageStore?
     var onRefresh: (() async -> Void)?
 
     @State private var isRefreshing = false
@@ -37,9 +38,8 @@ struct AccountDetailView: View {
 
                 windowCards
 
-                // Show standalone streak card only when there's no daily target card
-                if dailyTarget == nil, let streak, streak.currentStreak > 0 {
-                    StreakCard(streak: streak)
+                if let tokenUsageStore {
+                    TokenInsightsCard(store: tokenUsageStore)
                 }
 
                 if !snapshots.isEmpty {
@@ -55,6 +55,13 @@ struct AccountDetailView: View {
                             dailyTarget: dailyTarget
                         )
                     }
+                }
+
+                if let streak {
+                    ActivityGridCard(
+                        streak: streak,
+                        tokenUsageStore: tokenUsageStore
+                    )
                 }
             }
             .padding(24)

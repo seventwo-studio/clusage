@@ -52,6 +52,7 @@ struct DashboardView: View {
                             },
                             pollState: viewModel.pollState,
                             rateLimitSecondsRemaining: viewModel.rateLimitSecondsRemaining,
+                            tokenUsageStore: viewModel.tokenUsageStore,
                             onRefresh: { await viewModel.poller?.pollNow() }
                         )
                     } else {

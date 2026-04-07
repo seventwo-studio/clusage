@@ -16,14 +16,16 @@ final class DashboardViewModel {
     let streakStore: StreakStore?
     let momentumProvider: MomentumProvider?
     let poller: UsagePoller?
+    let tokenUsageStore: TokenUsageStore?
     var selectedItem: SidebarItem?
 
-    init(accountStore: AccountStore, historyStore: UsageHistoryStore, streakStore: StreakStore? = nil, momentumProvider: MomentumProvider? = nil, poller: UsagePoller? = nil) {
+    init(accountStore: AccountStore, historyStore: UsageHistoryStore, streakStore: StreakStore? = nil, momentumProvider: MomentumProvider? = nil, poller: UsagePoller? = nil, tokenUsageStore: TokenUsageStore? = nil) {
         self.accountStore = accountStore
         self.historyStore = historyStore
         self.streakStore = streakStore
         self.momentumProvider = momentumProvider
         self.poller = poller
+        self.tokenUsageStore = tokenUsageStore
     }
 
     var accounts: [Account] {
