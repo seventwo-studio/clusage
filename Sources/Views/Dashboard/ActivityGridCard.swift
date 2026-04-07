@@ -5,16 +5,33 @@ struct ActivityGridCard: View {
     let streak: UsageStreak
     let tokenUsageStore: TokenUsageStore?
 
-    private let columns = 13 // weeks to show
     private let rows = 7    // days per week (Mon–Sun)
-    private let cellSize: CGFloat = 12
-    private let cellSpacing: CGFloat = 3
+    private let dayLabelWidth: CGFloat = 24
+    private let minCellSpacing: CGFloat = 3
 
-    private var gridData: [DayCell] {
+    private func columns(for availableWidth: CGFloat) -> Int {
+        // Calculate how many columns fit at a reasonable cell size
+        let gridWidth = availableWidth - dayLabelWidth - minCellSpacing
+        // Aim for cells between 10-16px, pick column count that fills nicely
+        let idealCellSize: CGFloat = 13
+        let cols = Int(gridWidth / (idealCellSize + minCellSpacing))
+        return max(cols, 8)
+    }
+
+    private func gridMetrics(for availableWidth: CGFloat) -> (columns: Int, cellSize: CGFloat, spacing: CGFloat) {
+        let cols = columns(for: availableWidth)
+        let gridWidth = availableWidth - dayLabelWidth - minCellSpacing
+        // Distribute space evenly: total = cols * cellSize + (cols - 1) * spacing
+        // With spacing = minCellSpacing, cellSize = (gridWidth - (cols-1)*spacing) / cols
+        let spacing = minCellSpacing
+        let cellSize = (gridWidth - CGFloat(cols - 1) * spacing) / CGFloat(cols)
+        return (cols, max(cellSize, 4), spacing)
+    }
+
+    private func gridData(columns: Int) -> [DayCell] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
 
-        // Build a lookup of daily message counts for intensity
         var messageCounts: [String: Int] = [:]
         if let store = tokenUsageStore {
             for summary in store.recentSummaries(days: columns * 7) {
@@ -22,15 +39,11 @@ struct ActivityGridCard: View {
             }
         }
 
-        // Find the max for normalization (exclude outliers by using p90)
         let counts = messageCounts.values.filter { $0 > 0 }.sorted()
         let maxCount = counts.isEmpty ? 1 : counts[min(counts.count - 1, Int(Double(counts.count) * 0.9))]
 
-        // Build grid: columns * 7 days, ending on today
-        // Grid fills top-to-bottom (Mon=0, Sun=6), left-to-right (oldest to newest)
         let todayWeekday = (calendar.component(.weekday, from: today) + 5) % 7 // Mon=0
         let totalCells = columns * rows
-        let daysBack = totalCells - 1 - todayWeekday
 
         var cells: [DayCell] = []
         for i in 0..<totalCells {
@@ -93,28 +106,35 @@ struct ActivityGridCard: View {
                     }
                 }
 
-                // Month labels
-                monthLabels
+                GeometryReader { geo in
+                    let metrics = gridMetrics(for: geo.size.width)
+                    let data = gridData(columns: metrics.columns)
 
-                HStack(alignment: .top, spacing: 0) {
-                    // Day labels
-                    dayLabels
+                    VStack(alignment: .leading, spacing: 4) {
+                        // Month labels
+                        monthLabels(columns: metrics.columns, cellSize: metrics.cellSize, spacing: metrics.spacing)
 
-                    // Grid
-                    let data = gridData
-                    Grid(horizontalSpacing: cellSpacing, verticalSpacing: cellSpacing) {
-                        ForEach(0..<rows, id: \.self) { row in
-                            GridRow {
-                                ForEach(0..<columns, id: \.self) { col in
-                                    let index = col * rows + row
-                                    if index < data.count {
-                                        cellView(for: data[index])
+                        HStack(alignment: .top, spacing: 0) {
+                            // Day labels
+                            dayLabels(cellSize: metrics.cellSize, spacing: metrics.spacing)
+
+                            // Grid
+                            VStack(spacing: metrics.spacing) {
+                                ForEach(0..<rows, id: \.self) { row in
+                                    HStack(spacing: metrics.spacing) {
+                                        ForEach(0..<metrics.columns, id: \.self) { col in
+                                            let index = col * rows + row
+                                            if index < data.count {
+                                                cellView(for: data[index], size: metrics.cellSize)
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+                .frame(height: gridHeight)
 
                 // Legend
                 HStack(spacing: 4) {
@@ -138,18 +158,22 @@ struct ActivityGridCard: View {
         }
     }
 
+    /// Estimated grid height (month labels + 7 rows of cells + spacing).
+    private var gridHeight: CGFloat {
+        let estimatedCellSize: CGFloat = 13
+        return 12 + 4 + CGFloat(rows) * estimatedCellSize + CGFloat(rows - 1) * minCellSpacing
+    }
+
     // MARK: - Month Labels
 
-    private var monthLabels: some View {
+    private func monthLabels(columns: Int, cellSize: CGFloat, spacing: CGFloat) -> some View {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         let todayWeekday = (calendar.component(.weekday, from: today) + 5) % 7
         let totalCells = columns * rows
         let firstDate = calendar.date(byAdding: .day, value: -(totalCells - 1 - todayWeekday), to: today)!
 
-        // Compute which column each month starts in
-        let dayLabelWidth: CGFloat = 22
-        let columnWidth = cellSize + cellSpacing
+        let columnWidth = cellSize + spacing
 
         var monthMarkers: [(String, CGFloat)] = []
         var lastMonth = -1
@@ -161,7 +185,7 @@ struct ActivityGridCard: View {
                 let formatter = DateFormatter()
                 formatter.dateFormat = "MMM"
                 let label = formatter.string(from: date)
-                let x = dayLabelWidth + CGFloat(col) * columnWidth
+                let x = dayLabelWidth + minCellSpacing + CGFloat(col) * columnWidth
                 monthMarkers.append((label, x))
                 lastMonth = month
             }
@@ -181,21 +205,21 @@ struct ActivityGridCard: View {
 
     // MARK: - Day Labels
 
-    private var dayLabels: some View {
-        VStack(spacing: cellSpacing) {
+    private func dayLabels(cellSize: CGFloat, spacing: CGFloat) -> some View {
+        VStack(spacing: spacing) {
             ForEach(0..<rows, id: \.self) { row in
                 if row == 0 || row == 2 || row == 4 {
                     Text(dayAbbrev(row))
                         .font(.system(size: 9))
                         .foregroundStyle(.tertiary)
-                        .frame(width: 18, height: cellSize, alignment: .trailing)
+                        .frame(width: dayLabelWidth - minCellSpacing, height: cellSize, alignment: .trailing)
                 } else {
                     Color.clear
-                        .frame(width: 18, height: cellSize)
+                        .frame(width: dayLabelWidth - minCellSpacing, height: cellSize)
                 }
             }
         }
-        .padding(.trailing, 4)
+        .padding(.trailing, minCellSpacing)
     }
 
     private func dayAbbrev(_ row: Int) -> String {
@@ -209,10 +233,10 @@ struct ActivityGridCard: View {
 
     // MARK: - Cell
 
-    private func cellView(for cell: DayCell) -> some View {
+    private func cellView(for cell: DayCell, size: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: 2)
             .fill(cell.level.color)
-            .frame(width: cellSize, height: cellSize)
+            .frame(width: size, height: size)
             .overlay {
                 if cell.isToday {
                     RoundedRectangle(cornerRadius: 2)
@@ -227,7 +251,7 @@ struct ActivityGridCard: View {
         formatter.dateFormat = "MMM d, yyyy"
         let dateStr = formatter.string(from: cell.date)
         if let store = tokenUsageStore,
-           let summary = store.recentSummaries(days: columns * 7).first(where: { $0.date == cell.dateKey }),
+           let summary = store.dailySummaries.first(where: { $0.date == cell.dateKey }),
            summary.messageCount > 0 {
             let cost = store.costForSummary(summary)
             return "\(summary.messageCount) messages ($\(String(format: "%.0f", cost))) on \(dateStr)"
@@ -239,11 +263,11 @@ struct ActivityGridCard: View {
 
     private var statsRow: some View {
         let activeDaysCount = streak.activeDays.count
-        let totalDays = columns * 7
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         let todayWeekday = (calendar.component(.weekday, from: today) + 5) % 7
-        let pastDays = (columns - 1) * rows + todayWeekday + 1
+        // Use a fixed estimate for display since actual columns depend on width
+        let pastDays = 12 * rows + todayWeekday + 1
 
         return HStack {
             Text("\(activeDaysCount) active days in the last \(pastDays) days")
@@ -287,6 +311,5 @@ enum ActivityLevel: CaseIterable {
         }
     }
 
-    // Used for future/padding cells
     static var empty: ActivityLevel { .none }
 }
