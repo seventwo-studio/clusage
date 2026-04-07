@@ -6,6 +6,7 @@ struct AccountsPageView: View {
     @State private var detectedCredentials: [DetectedCredential] = []
     @State private var isDetecting = true
     @State private var importingIDs: Set<UUID> = []
+    @State private var importErrors: [UUID: String] = [:]
     @State private var accountToDelete: Account?
 
     // Custom token
@@ -38,33 +39,41 @@ struct AccountsPageView: View {
             if !isDetecting && !unlinkedCredentials.isEmpty {
                 Section("Detected Accounts") {
                     ForEach(unlinkedCredentials) { credential in
-                        HStack {
-                            Image(systemName: "person.crop.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(.secondary)
-                                .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: "person.crop.circle.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(.secondary)
+                                    .accessibilityHidden(true)
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(credential.label)
-                                    .font(.body.weight(.medium))
-                                Text(credential.sourceDescription)
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(credential.label)
+                                        .font(.body.weight(.medium))
+                                    Text(credential.sourceDescription)
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+
+                                Spacer()
+
+                                if importingIDs.contains(credential.id) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .accessibilityLabel("Importing \(credential.label)")
+                                } else {
+                                    Button("Add") {
+                                        importCredential(credential)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                    .accessibilityLabel("Add \(credential.label)")
+                                }
                             }
 
-                            Spacer()
-
-                            if importingIDs.contains(credential.id) {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .accessibilityLabel("Importing \(credential.label)")
-                            } else {
-                                Button("Add") {
-                                    importCredential(credential)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
-                                .accessibilityLabel("Add \(credential.label)")
+                            if let error = importErrors[credential.id] {
+                                Label(error, systemImage: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.red)
+                                    .font(.caption)
                             }
                         }
                     }
@@ -192,6 +201,7 @@ struct AccountsPageView: View {
 
     private func importCredential(_ credential: DetectedCredential) {
         importingIDs.insert(credential.id)
+        importErrors.removeValue(forKey: credential.id)
 
         Task { @MainActor in
             defer { importingIDs.remove(credential.id) }
@@ -211,6 +221,7 @@ struct AccountsPageView: View {
                 poller?.pollNewAccountsIfNeeded()
                 Log.accounts.info("Imported credential '\(credential.label)' as '\(name)'")
             } catch {
+                importErrors[credential.id] = error.localizedDescription
                 Log.accounts.warning("Failed to import '\(credential.label)': \(error.localizedDescription)")
             }
         }

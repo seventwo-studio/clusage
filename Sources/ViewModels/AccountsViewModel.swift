@@ -161,6 +161,7 @@ final class AccountsViewModel {
             Log.accounts.info("Filtered \(toImport.count - uniqueImports.count) duplicate token(s)")
         }
 
+        var failedLabels: [String] = []
         for credential in uniqueImports {
             do {
                 // validateToken hits usage endpoint — confirms the token works
@@ -178,6 +179,7 @@ final class AccountsViewModel {
                 importedCount += 1
                 Log.accounts.info("Imported credential '\(credential.label)' as '\(name)'")
             } catch {
+                failedLabels.append(credential.label)
                 Log.accounts.warning("Skipping credential '\(credential.label)': \(error.localizedDescription)")
             }
         }
@@ -188,8 +190,10 @@ final class AccountsViewModel {
             onAccountsAdded?()
         }
 
-        if importedCount == 0 {
+        if failedLabels.count == uniqueImports.count {
             self.error = "Selected tokens could not be validated. They may have expired."
+        } else if !failedLabels.isEmpty {
+            self.error = "Could not import \(failedLabels.count) account(s): \(failedLabels.joined(separator: ", ")). Tokens may have expired."
         }
     }
 }
