@@ -37,6 +37,7 @@ actor APIClient {
 
     // MARK: - OAuth Token Refresh
 
+    static let anthropicBetaVersion = "oauth-2025-04-20"
     static let claudeOAuthClientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
     private static let tokenURL = URL(string: "https://platform.claude.com/v1/oauth/token")!
 
@@ -86,7 +87,7 @@ actor APIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Clusage/\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown")", forHTTPHeaderField: "User-Agent")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue(Self.anthropicBetaVersion, forHTTPHeaderField: "anthropic-beta")
         request.timeoutInterval = 15
         return request
     }

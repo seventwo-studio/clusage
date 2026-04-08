@@ -332,7 +332,7 @@ struct OnboardingView: View {
             FeatureRow(
                 icon: "chart.xyaxis.line",
                 title: "History and insights",
-                description: "Snapshots every 5 minutes, kept for 7 days. See trends and pace over time."
+                description: "Snapshots every 5 minutes, kept for 30 days. See trends and pace over time."
             )
 
             FeatureRow(

@@ -8,7 +8,7 @@ struct DaySlot: Codable, Sendable, Equatable {
     /// Active hours in this slot.
     var activeHours: Double {
         guard isActive else { return 0 }
-        guard endHour != startHour else { return 0 }
+        guard endHour != startHour else { return 24 }
         if endHour > startHour {
             return Double(endHour - startHour)
         } else {
