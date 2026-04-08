@@ -3,8 +3,8 @@ import Foundation
 @MainActor @Observable
 final class MenuBarViewModel {
     let accountStore: AccountStore
-    let poller: UsagePoller?
-    let momentumProvider: MomentumProvider?
+    var poller: UsagePoller?
+    var momentumProvider: MomentumProvider?
 
     init(accountStore: AccountStore, poller: UsagePoller? = nil, momentumProvider: MomentumProvider? = nil) {
         self.accountStore = accountStore

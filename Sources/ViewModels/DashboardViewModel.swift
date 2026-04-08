@@ -13,10 +13,10 @@ enum SidebarItem: Hashable {
 final class DashboardViewModel {
     let accountStore: AccountStore
     let historyStore: UsageHistoryStore
-    let streakStore: StreakStore?
-    let momentumProvider: MomentumProvider?
-    let poller: UsagePoller?
-    let tokenUsageStore: TokenUsageStore?
+    var streakStore: StreakStore?
+    var momentumProvider: MomentumProvider?
+    var poller: UsagePoller?
+    var tokenUsageStore: TokenUsageStore?
     var selectedItem: SidebarItem?
 
     init(accountStore: AccountStore, historyStore: UsageHistoryStore, streakStore: StreakStore? = nil, momentumProvider: MomentumProvider? = nil, poller: UsagePoller? = nil, tokenUsageStore: TokenUsageStore? = nil) {

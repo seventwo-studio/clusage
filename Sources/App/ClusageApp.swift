@@ -11,25 +11,31 @@ struct ClusageApp: App {
     @State private var poller: UsagePoller?
     @State private var updateChecker = UpdateChecker()
     @State private var hotkeyManager = HotkeyManager()
+    @State private var menuBarViewModel: MenuBarViewModel?
+    @State private var dashboardViewModel: DashboardViewModel?
 
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarView(viewModel: MenuBarViewModel(
-                accountStore: accountStore,
-                poller: poller,
-                momentumProvider: momentumProvider
-            ))
+            if let menuBarViewModel {
+                MenuBarView(viewModel: menuBarViewModel)
+            }
+        } label: {
+            MenuBarIcon(accountStore: accountStore)
             .onAppear {
-                Log.app.info("Menu bar popover appeared")
+                if menuBarViewModel == nil {
+                    menuBarViewModel = MenuBarViewModel(accountStore: accountStore)
+                    dashboardViewModel = DashboardViewModel(
+                        accountStore: accountStore,
+                        historyStore: historyStore
+                    )
+                }
                 if accountStore.accounts.isEmpty {
                     Log.app.info("No accounts — opening dashboard for onboarding")
                     openWindow(id: "dashboard")
                 }
             }
-        } label: {
-            MenuBarIcon(accountStore: accountStore)
             .task {
                 recordStartupGap()
                 accountStore.refreshAllFromKeychain()
@@ -47,19 +53,8 @@ struct ClusageApp: App {
         .menuBarExtraStyle(.window)
 
         Window("Dashboard", id: "dashboard") {
-            DashboardView(
-                viewModel: DashboardViewModel(
-                    accountStore: accountStore,
-                    historyStore: historyStore,
-                    streakStore: streakStore,
-                    momentumProvider: momentumProvider,
-                    poller: poller,
-                    tokenUsageStore: tokenUsageStore
-                )
-            )
-            .onAppear {
-                Log.app.info("Dashboard window opened")
-                NSApp.activate()
+            if let dashboardViewModel {
+                DashboardView(viewModel: dashboardViewModel)
             }
         }
         .windowResizability(.contentSize)
@@ -81,17 +76,17 @@ struct ClusageApp: App {
 
     private func recordStartupGap() {
         let quitTimestamp = UserDefaults.standard.double(forKey: DefaultsKeys.lastQuitAt)
-        guard quitTimestamp > 0 else {
+        if quitTimestamp > 0 {
+            let quitDate = Date(timeIntervalSince1970: quitTimestamp)
+            let gap = MonitoringGap(start: quitDate, end: Date())
+            historyStore.addGap(gap)
+            historyStore.saveGaps()
+            Log.app.info("App started — recorded gap since quit: \(String(format: "%.0f", Date().timeIntervalSince(quitDate)))s")
+            UserDefaults.standard.removeObject(forKey: DefaultsKeys.lastQuitAt)
+        } else {
             Log.app.info("App started — no previous quit time recorded (first launch)")
-            return
         }
-        let quitDate = Date(timeIntervalSince1970: quitTimestamp)
-        let gap = MonitoringGap(start: quitDate, end: Date())
-        historyStore.addGap(gap)
-        historyStore.saveGaps()
-        Log.app.info("App started — recorded gap since quit: \(String(format: "%.0f", Date().timeIntervalSince(quitDate)))s")
-        // Remove quit key AND update lastPollAt so the poller doesn't record a duplicate gap
-        UserDefaults.standard.removeObject(forKey: DefaultsKeys.lastQuitAt)
+        // Always update lastPollAt so the poller doesn't record a duplicate gap
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: DefaultsKeys.lastPollAt)
     }
 
@@ -99,21 +94,17 @@ struct ClusageApp: App {
 
     private func observeAppLifecycle() {
         guard terminationObserver == nil else { return }
-        let pollerRef = poller
-        let historyRef = historyStore
-        let streakRef = streakStore
-        let tokenRef = tokenUsageStore
         terminationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
             object: nil, queue: .main
-        ) { _ in
+        ) { [self] _ in
             Log.app.info("App terminating — stopping poller and saving state")
-            pollerRef?.stop()
+            poller?.stop()
             UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: DefaultsKeys.lastQuitAt)
-            historyRef.save()
-            historyRef.saveGaps()
-            streakRef.save()
-            tokenRef.save()
+            historyStore.save()
+            historyStore.saveGaps()
+            streakStore.save()
+            tokenUsageStore.save()
         }
     }
 
@@ -137,5 +128,13 @@ struct ClusageApp: App {
         )
         poller = newPoller
         newPoller.start()
+
+        // Update ViewModels with the now-available services
+        menuBarViewModel?.poller = newPoller
+        menuBarViewModel?.momentumProvider = provider
+        dashboardViewModel?.poller = newPoller
+        dashboardViewModel?.momentumProvider = provider
+        dashboardViewModel?.streakStore = streakStore
+        dashboardViewModel?.tokenUsageStore = tokenUsageStore
     }
 }
