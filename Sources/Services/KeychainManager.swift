@@ -83,11 +83,9 @@ enum KeychainManager {
         }
 
         // 5-second timeout guard — dump-keychain can hang on corrupted or locked keychains
-        let deadline = Date().addingTimeInterval(5)
-        while process.isRunning && Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.01)
-        }
-        if process.isRunning {
+        let semaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in semaphore.signal() }
+        if semaphore.wait(timeout: .now() + 5) == .timedOut {
             process.terminate()
             Log.keychain.warning("security dump-keychain timed out")
             return []
@@ -132,11 +130,9 @@ enum KeychainManager {
         }
 
         // 2-second timeout guard against corrupted keychain locks
-        let deadline = Date().addingTimeInterval(2)
-        while process.isRunning && Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.01)
-        }
-        if process.isRunning {
+        let semaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in semaphore.signal() }
+        if semaphore.wait(timeout: .now() + 2) == .timedOut {
             process.terminate()
             Log.keychain.warning("security CLI timed out for '\(serviceName)'")
             return nil
