@@ -76,7 +76,11 @@ let project = Project(
             sources: ["Tests/**"],
             dependencies: [
                 .target(name: "Clusage"),
-            ]
+            ],
+            settings: .settings(base: [
+                "CODE_SIGN_IDENTITY": "Apple Development",
+                "CODE_SIGN_STYLE": "Automatic",
+            ])
         ),
     ]
 )

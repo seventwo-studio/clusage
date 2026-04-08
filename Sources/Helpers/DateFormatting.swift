@@ -1,6 +1,6 @@
 import Foundation
 
-@MainActor enum DateFormatting {
+enum DateFormatting {
     static func resetCountdown(from date: Date) -> String {
         let remaining = date.timeIntervalSinceNow
         guard remaining > 0 else { return "Resetting..." }
@@ -24,56 +24,54 @@ import Foundation
         return formatter.localizedString(for: date, relativeTo: .now)
     }
 
-    private static let iso8601WithFractional: ISO8601DateFormatter = {
+    nonisolated(unsafe) private static let iso8601WithFractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
 
-    private static let iso8601Plain: ISO8601DateFormatter = {
+    nonisolated(unsafe) private static let iso8601Plain: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
     }()
 
-    static func parseISO8601(_ string: String) -> Date? {
+    @MainActor static func parseISO8601(_ string: String) -> Date? {
         iso8601WithFractional.date(from: string) ?? iso8601Plain.date(from: string)
     }
 
-    // MARK: - Cached DateFormatters
+    // MARK: - Cached DateFormatters (MainActor-isolated for thread safety)
 
-    private static let hourAmPmFormatter: DateFormatter = {
+    @MainActor private static let hourAmPmFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "ha"
         return f
     }()
 
-    private static let hourSpaceAmPmFormatter: DateFormatter = {
+    @MainActor private static let hourSpaceAmPmFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "h a"
         return f
     }()
 
-    private static let dateDashFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
     /// Format an hour as "9am", "12pm", etc.
-    static func formatHourShort(_ hour: Int) -> String {
+    @MainActor static func formatHourShort(_ hour: Int) -> String {
         let date = Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: .now) ?? .now
         return hourAmPmFormatter.string(from: date).lowercased()
     }
 
     /// Format an hour as "9 AM", "12 PM", etc.
-    static func formatHourAmPm(_ hour: Int) -> String {
+    @MainActor static func formatHourAmPm(_ hour: Int) -> String {
         let date = Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: .now) ?? .now
         return hourSpaceAmPmFormatter.string(from: date)
     }
 
-    /// Format a date as "yyyy-MM-dd".
+    /// Format a date as "yyyy-MM-dd". Thread-safe — uses Calendar instead of DateFormatter.
     static func formatDateDash(_ date: Date) -> String {
-        dateDashFormatter.string(from: date)
+        let cal = Calendar.current
+        let y = cal.component(.year, from: date)
+        let m = cal.component(.month, from: date)
+        let d = cal.component(.day, from: date)
+        return String(format: "%04d-%02d-%02d", y, m, d)
     }
 }

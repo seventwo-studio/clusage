@@ -70,7 +70,7 @@ import Observation
     }
 
     func removeAllAccounts() {
-        Log.accounts.info("Removing all \(accounts.count) account(s)")
+        Log.accounts.info("Removing all \(self.accounts.count) account(s)")
         for account in accounts {
             tokens.removeValue(forKey: account.id.uuidString)
             KeychainManager.deleteToken(for: account.id)
