@@ -1,6 +1,6 @@
 import Foundation
 
-enum DateFormatting {
+@MainActor enum DateFormatting {
     static func resetCountdown(from date: Date) -> String {
         let remaining = date.timeIntervalSinceNow
         guard remaining > 0 else { return "Resetting..." }
@@ -24,13 +24,13 @@ enum DateFormatting {
         return formatter.localizedString(for: date, relativeTo: .now)
     }
 
-    nonisolated(unsafe) private static let iso8601WithFractional: ISO8601DateFormatter = {
+    private static let iso8601WithFractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
 
-    nonisolated(unsafe) private static let iso8601Plain: ISO8601DateFormatter = {
+    private static let iso8601Plain: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
@@ -42,19 +42,19 @@ enum DateFormatting {
 
     // MARK: - Cached DateFormatters
 
-    nonisolated(unsafe) private static let hourAmPmFormatter: DateFormatter = {
+    private static let hourAmPmFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "ha"
         return f
     }()
 
-    nonisolated(unsafe) private static let hourSpaceAmPmFormatter: DateFormatter = {
+    private static let hourSpaceAmPmFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "h a"
         return f
     }()
 
-    nonisolated(unsafe) private static let dateDashFormatter: DateFormatter = {
+    private static let dateDashFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         return f
