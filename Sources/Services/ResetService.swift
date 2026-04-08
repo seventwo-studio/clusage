@@ -44,9 +44,7 @@ enum ResetService {
             momentumProvider: momentumProvider
         )
         PollingSettings.resetToDefaults()
-        for account in accountStore.accounts {
-            accountStore.removeAccount(account)
-        }
+        accountStore.removeAllAccounts()
         let ud = UserDefaults.standard
         ud.removeObject(forKey: DefaultsKeys.menuBarAccountID)
         Log.app.info("Full reset completed")

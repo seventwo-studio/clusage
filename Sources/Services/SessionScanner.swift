@@ -11,6 +11,10 @@ import Foundation
     private let offsetsFileURL: URL
     /// Track the byte offset we've already read for each file (incremental reads).
     private var fileOffsets: [String: UInt64] = [:]
+    /// Cached session summaries from previous scans — avoids re-reading entire files.
+    private var cachedSessions: [String: SessionSummary] = [:]
+    /// Byte offsets for session scanning (separate from token scanning offsets).
+    private var sessionOffsets: [String: UInt64] = [:]
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -113,96 +117,146 @@ import Foundation
         return results
     }
 
-    /// Build session summaries by reading complete session JSONL files.
+    /// Build session summaries by reading session JSONL files incrementally.
     /// Only reads top-level session files (not subagents) since subagents are part
-    /// of a parent session. Reads from byte 0 to get full session context.
+    /// of a parent session. Uses cached summaries and only reads new bytes.
     func scanSessions(since cutoffDate: String) -> [SessionSummary] {
         let fm = FileManager.default
         guard fm.fileExists(atPath: projectsDir.path) else { return [] }
 
-        var summaries: [SessionSummary] = []
-
         // Only scan top-level session JSONL files (not subagents)
         guard let projectDirs = fm.contentsOfDirectory(atPath: projectsDir.path, includingHidden: false) else { return [] }
+
+        // Track which sessions we see this scan to prune stale cache entries
+        var seenSessionIDs = Set<String>()
 
         for projectName in projectDirs {
             let projectDir = projectsDir.appendingPathComponent(projectName)
             guard let contents = fm.contentsOfDirectory(atPath: projectDir.path, includingHidden: false) else { continue }
             for item in contents where item.hasSuffix(".jsonl") {
                 let fileURL = projectDir.appendingPathComponent(item)
+                let path = fileURL.path
                 let sessionID = String(item.dropLast(6)) // strip .jsonl
+                seenSessionIDs.insert(sessionID)
 
-                guard let data = try? Data(contentsOf: fileURL),
-                      let text = String(data: data, encoding: .utf8) else { continue }
+                // Skip if file hasn't grown past our session offset
+                guard let attrs = try? fm.attributesOfItem(atPath: path),
+                      let fileSize = attrs[.size] as? UInt64 else { continue }
+                let offset = sessionOffsets[path] ?? 0
+                guard fileSize > offset || cachedSessions[sessionID] == nil else { continue }
 
-                var messages: [(model: String, date: String, timestamp: String, context: Int, output: Int, cost: Double)] = []
+                // Read only new bytes (or full file if first scan for this session)
+                let needsFullRead = cachedSessions[sessionID] == nil
+                let readOffset: UInt64 = needsFullRead ? 0 : offset
 
-                for line in text.components(separatedBy: "\n") where !line.isEmpty {
-                    guard let lineData = line.data(using: .utf8),
-                          let entry = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
-                          entry["type"] as? String == "assistant",
-                          let message = entry["message"] as? [String: Any],
-                          let usageDict = message["usage"] as? [String: Any],
-                          let model = message["model"] as? String,
-                          message["stop_reason"] is String else { continue }
+                guard let fileHandle = FileHandle(forReadingAtPath: path) else { continue }
+                defer { try? fileHandle.close() }
 
-                    let input = usageDict["input_tokens"] as? Int ?? 0
-                    let output = usageDict["output_tokens"] as? Int ?? 0
-                    let cacheRead = usageDict["cache_read_input_tokens"] as? Int ?? 0
-                    let cacheWrite = usageDict["cache_creation_input_tokens"] as? Int ?? 0
+                if readOffset > 0 { fileHandle.seek(toFileOffset: readOffset) }
+                let data = fileHandle.readDataToEndOfFile()
+                sessionOffsets[path] = fileHandle.offsetInFile
 
-                    guard input + output + cacheRead + cacheWrite > 0 else { continue }
+                guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { continue }
 
-                    let timestamp = entry["timestamp"] as? String ?? ""
-                    let date = Self.extractDate(from: timestamp)
-                    let context = input + cacheRead + cacheWrite
+                let newMessages = Self.parseSessionMessages(from: text)
+                guard !newMessages.isEmpty || cachedSessions[sessionID] != nil else { continue }
 
-                    let price = TokenPricing.price(for: model)
-                    let tokens = ModelTokens(
-                        inputTokens: input, outputTokens: output,
-                        cacheReadInputTokens: cacheRead, cacheCreationInputTokens: cacheWrite
-                    )
-                    let cost = price.cost(for: tokens)
-
-                    messages.append((model: model, date: date, timestamp: timestamp, context: context, output: output, cost: cost))
+                if needsFullRead {
+                    // Build summary from scratch
+                    guard !newMessages.isEmpty else { continue }
+                    if let summary = Self.buildSessionSummary(id: sessionID, messages: newMessages) {
+                        if summary.date >= cutoffDate {
+                            cachedSessions[sessionID] = summary
+                        }
+                    }
+                } else if !newMessages.isEmpty, var existing = cachedSessions[sessionID] {
+                    // Incrementally update existing summary with new messages
+                    for msg in newMessages {
+                        existing.messageCount += 1
+                        existing.costUSD += msg.cost
+                        existing.endContextTokens = msg.context
+                        existing.peakContextTokens = max(existing.peakContextTokens, msg.context)
+                        existing.totalOutputTokens += msg.output
+                    }
+                    if let last = newMessages.last {
+                        if let firstTimestamp = Self.parseISO8601(existing.date + "T00:00:00Z"),
+                           let lastTimestamp = Self.parseISO8601(last.timestamp) {
+                            existing.durationSeconds = lastTimestamp.timeIntervalSince(firstTimestamp)
+                        }
+                    }
+                    cachedSessions[sessionID] = existing
                 }
-
-                guard !messages.isEmpty else { continue }
-
-                let firstDate = messages.first!.date
-                // Skip sessions older than cutoff
-                guard firstDate >= cutoffDate else { continue }
-
-                // Find primary model (most messages)
-                var modelCounts: [String: Int] = [:]
-                for m in messages { modelCounts[m.model, default: 0] += 1 }
-                let primaryModel = modelCounts.max(by: { $0.value < $1.value })?.key ?? "unknown"
-
-                // Compute duration from timestamps
-                var duration: Double?
-                if messages.count >= 2,
-                   let first = Self.parseISO8601(messages.first!.timestamp),
-                   let last = Self.parseISO8601(messages.last!.timestamp) {
-                    duration = last.timeIntervalSince(first)
-                }
-
-                let summary = SessionSummary(
-                    id: sessionID,
-                    date: firstDate,
-                    messageCount: messages.count,
-                    costUSD: messages.reduce(0) { $0 + $1.cost },
-                    startContextTokens: messages.first!.context,
-                    endContextTokens: messages.last!.context,
-                    peakContextTokens: messages.map(\.context).max() ?? 0,
-                    totalOutputTokens: messages.reduce(0) { $0 + $1.output },
-                    primaryModel: primaryModel,
-                    durationSeconds: duration
-                )
-                summaries.append(summary)
             }
         }
 
-        return summaries.sorted { $0.date > $1.date }
+        // Prune cache entries for deleted files
+        cachedSessions = cachedSessions.filter { seenSessionIDs.contains($0.key) }
+
+        return cachedSessions.values
+            .filter { $0.date >= cutoffDate }
+            .sorted { $0.date > $1.date }
+    }
+
+    private typealias ParsedMessage = (model: String, date: String, timestamp: String, context: Int, output: Int, cost: Double)
+
+    private static func parseSessionMessages(from text: String) -> [ParsedMessage] {
+        var messages: [ParsedMessage] = []
+        for line in text.components(separatedBy: "\n") where !line.isEmpty {
+            guard let lineData = line.data(using: .utf8),
+                  let entry = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                  entry["type"] as? String == "assistant",
+                  let message = entry["message"] as? [String: Any],
+                  let usageDict = message["usage"] as? [String: Any],
+                  let model = message["model"] as? String,
+                  message["stop_reason"] is String else { continue }
+
+            let input = usageDict["input_tokens"] as? Int ?? 0
+            let output = usageDict["output_tokens"] as? Int ?? 0
+            let cacheRead = usageDict["cache_read_input_tokens"] as? Int ?? 0
+            let cacheWrite = usageDict["cache_creation_input_tokens"] as? Int ?? 0
+            guard input + output + cacheRead + cacheWrite > 0 else { continue }
+
+            let timestamp = entry["timestamp"] as? String ?? ""
+            let date = extractDate(from: timestamp)
+            let context = input + cacheRead + cacheWrite
+
+            let price = TokenPricing.price(for: model)
+            let tokens = ModelTokens(
+                inputTokens: input, outputTokens: output,
+                cacheReadInputTokens: cacheRead, cacheCreationInputTokens: cacheWrite
+            )
+            let cost = price.cost(for: tokens)
+            messages.append((model: model, date: date, timestamp: timestamp, context: context, output: output, cost: cost))
+        }
+        return messages
+    }
+
+    private static func buildSessionSummary(id: String, messages: [ParsedMessage]) -> SessionSummary? {
+        guard let first = messages.first, let last = messages.last else { return nil }
+
+        var modelCounts: [String: Int] = [:]
+        for m in messages { modelCounts[m.model, default: 0] += 1 }
+        let primaryModel = modelCounts.max(by: { $0.value < $1.value })?.key ?? "unknown"
+
+        var duration: Double?
+        if messages.count >= 2,
+           let firstDate = parseISO8601(first.timestamp),
+           let lastDate = parseISO8601(last.timestamp) {
+            duration = lastDate.timeIntervalSince(firstDate)
+        }
+
+        return SessionSummary(
+            id: id,
+            date: first.date,
+            messageCount: messages.count,
+            costUSD: messages.reduce(0) { $0 + $1.cost },
+            startContextTokens: first.context,
+            endContextTokens: last.context,
+            peakContextTokens: messages.map(\.context).max() ?? 0,
+            totalOutputTokens: messages.reduce(0) { $0 + $1.output },
+            primaryModel: primaryModel,
+            durationSeconds: duration
+        )
     }
 
     private static let iso8601Formatter: ISO8601DateFormatter = {

@@ -69,6 +69,19 @@ import Observation
         Log.accounts.info("Account removed. Total accounts: \(self.accounts.count)")
     }
 
+    func removeAllAccounts() {
+        Log.accounts.info("Removing all \(accounts.count) account(s)")
+        for account in accounts {
+            tokens.removeValue(forKey: account.id.uuidString)
+            KeychainManager.deleteToken(for: account.id)
+            KeychainManager.deleteRefreshToken(for: account.id)
+        }
+        accounts.removeAll()
+        menuBarAccountID = nil
+        saveAccounts()
+        Log.accounts.info("All accounts removed")
+    }
+
     func moveAccounts(from source: IndexSet, to destination: Int) {
         accounts.move(fromOffsets: source, toOffset: destination)
         saveAccounts()
