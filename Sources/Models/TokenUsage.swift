@@ -108,10 +108,11 @@ enum TokenPricing {
     static func price(for model: String) -> ModelPrice {
         if let exact = prices[model] { return exact }
         // Fuzzy match: "claude-opus-4-6" prefix matches
-        if model.contains("opus") { return prices["claude-opus-4-6"]! }
-        if model.contains("haiku") { return prices["claude-haiku-4-5-20251001"]! }
+        let sonnetFallback = ModelPrice(input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75)
+        if model.contains("opus") { return prices["claude-opus-4-6"] ?? sonnetFallback }
+        if model.contains("haiku") { return prices["claude-haiku-4-5-20251001"] ?? sonnetFallback }
         // Default to Sonnet pricing
-        return ModelPrice(input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75)
+        return sonnetFallback
     }
 
     static func cost(model: String, tokens: ModelTokens) -> Double {

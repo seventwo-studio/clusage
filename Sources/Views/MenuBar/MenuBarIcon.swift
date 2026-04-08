@@ -39,7 +39,7 @@ struct MenuBarIcon: View {
 
         let image = NSImage(size: NSSize(width: size, height: size))
         image.addRepresentation({
-            let rep = NSBitmapImageRep(
+            guard let rep = NSBitmapImageRep(
                 bitmapDataPlanes: nil,
                 pixelsWide: pixelSize,
                 pixelsHigh: pixelSize,
@@ -50,7 +50,7 @@ struct MenuBarIcon: View {
                 colorSpaceName: .deviceRGB,
                 bytesPerRow: 0,
                 bitsPerPixel: 0
-            )!
+            ) else { return NSBitmapImageRep() }
             rep.size = NSSize(width: size, height: size)
 
             guard let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return rep }
