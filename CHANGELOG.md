@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.6](https://github.com/lucasilverentand/clusage/compare/v0.1.5...v0.1.6) (2026-04-20)
+
+
+### Features
+
+* **accounts:** support custom .claude config directory per account ([#22](https://github.com/lucasilverentand/clusage/issues/22)) ([f1e0ab0](https://github.com/lucasilverentand/clusage/commit/f1e0ab041e9f18d29b4e1afbb950a6c4ae3f06af))
+* **menubar:** bring dashboard window to active Space when opened ([#23](https://github.com/lucasilverentand/clusage/issues/23)) ([6546e36](https://github.com/lucasilverentand/clusage/commit/6546e3629d6aab164cf77a9a42132fa8bb6605d2))
+
+
+### Bug Fixes
+
+* drain dump-keychain pipe concurrently to avoid deadlock ([#19](https://github.com/lucasilverentand/clusage/issues/19)) ([c0d1227](https://github.com/lucasilverentand/clusage/commit/c0d1227581cbac0b7b6923e65a9003f92def6aa6))
+* reset manual-entry state when navigating back in onboarding ([#21](https://github.com/lucasilverentand/clusage/issues/21)) ([e972cd9](https://github.com/lucasilverentand/clusage/commit/e972cd9da9cd3c569989456c8a23d7367ce9ad5b))
+
+
+### Improvements
+
+* display percentages as whole numbers ([#20](https://github.com/lucasilverentand/clusage/issues/20)) ([0dbd44e](https://github.com/lucasilverentand/clusage/commit/0dbd44e2e23719809bc0d0d27ac0b2bbbd379f76))
+
 ## [0.1.5](https://github.com/lucasilverentand/clusage/compare/v0.1.4...v0.1.5) (2026-04-08)
 
 
