@@ -82,6 +82,16 @@ enum KeychainManager {
             return []
         }
 
+        // Read pipe data on a background thread to avoid a deadlock: dump-keychain can
+        // produce output larger than the ~64 KB pipe buffer, so the process blocks on
+        // write if nobody is draining the pipe. Reading concurrently lets the process
+        // finish while we also enforce a timeout.
+        var data = Data()
+        let readQueue = DispatchQueue(label: "clusage.keychain.read")
+        readQueue.async {
+            data = pipe.fileHandleForReading.readDataToEndOfFile()
+        }
+
         // 5-second timeout guard — dump-keychain can hang on corrupted or locked keychains
         let semaphore = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in semaphore.signal() }
@@ -91,7 +101,8 @@ enum KeychainManager {
             return []
         }
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        // Process exited — wait briefly for the read to finish draining the pipe
+        readQueue.sync {}
 
         guard let output = String(data: data, encoding: .utf8) else { return [] }
 
