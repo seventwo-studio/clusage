@@ -396,6 +396,7 @@ import Foundation
 
         widgetWriter.write(accounts: accountStore.accounts)
         momentumProvider?.refresh()
+        tokenUsageStore?.scanner.updateExtraDirectories(from: accountStore.accounts)
         tokenUsageStore?.refresh()
         apiFileWriter.write(accounts: accountStore.accounts, momentumProvider: momentumProvider, tokenUsageStore: tokenUsageStore)
 

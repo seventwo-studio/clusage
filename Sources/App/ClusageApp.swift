@@ -39,6 +39,7 @@ struct ClusageApp: App {
             .task {
                 recordStartupGap()
                 accountStore.refreshAllFromKeychain()
+                tokenUsageStore.scanner.updateExtraDirectories(from: accountStore.accounts)
                 tokenUsageStore.refresh()
                 tokenUsageStore.refreshSessions()
                 startPolling()

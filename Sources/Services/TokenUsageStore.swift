@@ -9,7 +9,7 @@ import Foundation
 
     private let fileURL: URL
     private let sessionsFileURL: URL
-    private let scanner: SessionScanner
+    let scanner: SessionScanner
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()

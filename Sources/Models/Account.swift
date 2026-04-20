@@ -16,6 +16,9 @@ struct Account: Identifiable, Codable, Sendable {
     /// Custom path to a `.credentials.json` file for this account.
     /// When nil, defaults to `~/.claude/.credentials.json`.
     var credentialsFilePath: String?
+    /// Custom path to the `.claude` configuration directory for this account.
+    /// When nil, defaults to `~/.claude`. Affects session scanning for cost estimates.
+    var claudeConfigDir: String?
     /// Per-account usage schedule.
     var usagePlan: UsagePlan = UsagePlan()
 
@@ -38,7 +41,7 @@ struct Account: Identifiable, Codable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id, name, fiveHour, sevenDay, profile, lastUpdated, lastError
-        case keychainServiceName, tokenExpiresAt, credentialsFilePath, usagePlan
+        case keychainServiceName, tokenExpiresAt, credentialsFilePath, claudeConfigDir, usagePlan
     }
 
     init(from decoder: Decoder) throws {
@@ -53,6 +56,7 @@ struct Account: Identifiable, Codable, Sendable {
         keychainServiceName = try c.decodeIfPresent(String.self, forKey: .keychainServiceName)
         tokenExpiresAt = try c.decodeIfPresent(Date.self, forKey: .tokenExpiresAt)
         credentialsFilePath = try c.decodeIfPresent(String.self, forKey: .credentialsFilePath)
+        claudeConfigDir = try c.decodeIfPresent(String.self, forKey: .claudeConfigDir)
         usagePlan = try c.decodeIfPresent(UsagePlan.self, forKey: .usagePlan) ?? UsagePlan()
     }
 }
