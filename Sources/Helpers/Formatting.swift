@@ -1,8 +1,8 @@
 import Foundation
 
 enum Formatting {
-    /// Format a percentage value: "12.3%" or "12%".
-    static func percent(_ value: Double, decimals: Int = 1) -> String {
+    /// Format a percentage value: "12%" (no decimals by default).
+    static func percent(_ value: Double, decimals: Int = 0) -> String {
         String(format: "%.\(decimals)f%%", value)
     }
 

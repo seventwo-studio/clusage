@@ -25,9 +25,9 @@ struct PaceCalculation: Sendable {
         if abs(delta) < 1 {
             return "On pace"
         } else if isOverpacing {
-            return String(format: "%.1f%% ahead", delta)
+            return String(format: "%.0f%% ahead", delta)
         } else {
-            return String(format: "%.1f%% behind", abs(delta))
+            return String(format: "%.0f%% behind", abs(delta))
         }
     }
 

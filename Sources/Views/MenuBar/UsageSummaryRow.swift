@@ -55,7 +55,7 @@ struct UsageSummaryRow: View {
                         Text("7-day window")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.secondary)
-                        usageBar(window: sevenDay, granularPercent: projection?.currentGranularUtilization())
+                        usageBar(window: sevenDay)
                         Text(paceSubtitle(window: sevenDay, showReset: false))
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
@@ -98,8 +98,8 @@ struct UsageSummaryRow: View {
         return paceText
     }
 
-    private func usageBar(window: UsageWindow, granularPercent: Double? = nil) -> some View {
-        let displayPercent = granularPercent ?? window.percentUsed
+    private func usageBar(window: UsageWindow) -> some View {
+        let displayPercent = window.percentUsed
         let displayNormalized = displayPercent / 100
         let windowLabel = window.duration <= 18001 ? "5-hour" : "7-day"
         return HStack(spacing: 6) {
@@ -114,15 +114,9 @@ struct UsageSummaryRow: View {
             }
             .frame(height: 6)
             .accessibilityHidden(true)
-            if granularPercent != nil {
-                Text(Formatting.percent(displayPercent))
-                    .font(.caption2.monospacedDigit().weight(.medium))
-                    .frame(width: 38, alignment: .trailing)
-            } else {
-                Text("\(Int(displayPercent))%")
-                    .font(.caption2.monospacedDigit().weight(.medium))
-                    .frame(width: 30, alignment: .trailing)
-            }
+            Text("\(Int(displayPercent))%")
+                .font(.caption2.monospacedDigit().weight(.medium))
+                .frame(width: 30, alignment: .trailing)
             PaceIndicator(window: window)
         }
         .accessibilityElement(children: .ignore)

@@ -110,7 +110,7 @@ struct SamplesPageView: View {
 
                 TableColumn("5H %") { row in
                     if let value = row.fiveHour {
-                        Text(String(format: "%.1f%%", value))
+                        Text(String(format: "%.0f%%", value))
                             .monospacedDigit()
                             .foregroundStyle(.blue)
                     }
@@ -119,7 +119,7 @@ struct SamplesPageView: View {
 
                 TableColumn("7D %") { row in
                     if let value = row.sevenDay {
-                        Text(String(format: "%.1f%%", value))
+                        Text(String(format: "%.0f%%", value))
                             .monospacedDigit()
                             .foregroundStyle(.purple)
                     }

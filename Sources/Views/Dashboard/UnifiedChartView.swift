@@ -788,12 +788,12 @@ struct UnifiedChartView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 3) {
                     Circle().fill(.blue).frame(width: 6, height: 6)
-                    Text(String(format: "5h: %.1f%%", snap.fiveHourUtilization))
+                    Text(String(format: "5h: %.0f%%", snap.fiveHourUtilization))
                         .font(.caption2.monospacedDigit())
                 }
                 HStack(spacing: 3) {
                     Circle().fill(.purple).frame(width: 6, height: 6)
-                    Text(String(format: "7d: %.1f%%", snap.sevenDayUtilization))
+                    Text(String(format: "7d: %.0f%%", snap.sevenDayUtilization))
                         .font(.caption2.monospacedDigit())
                 }
             }
@@ -807,12 +807,12 @@ struct UnifiedChartView: View {
             if !filteredSnapshots.isEmpty {
                 statItem(
                     "Peak 5H",
-                    value: String(format: "%.1f%%", filteredSnapshots.map(\.fiveHourUtilization).max() ?? 0),
+                    value: String(format: "%.0f%%", filteredSnapshots.map(\.fiveHourUtilization).max() ?? 0),
                     color: .blue
                 )
                 statItem(
                     "Peak 7D",
-                    value: String(format: "%.1f%%", filteredSnapshots.map(\.sevenDayUtilization).max() ?? 0),
+                    value: String(format: "%.0f%%", filteredSnapshots.map(\.sevenDayUtilization).max() ?? 0),
                     color: .purple
                 )
             }
