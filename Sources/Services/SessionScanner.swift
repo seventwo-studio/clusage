@@ -7,7 +7,9 @@ import Foundation
 @MainActor final class SessionScanner {
     private(set) var isScanning = false
 
-    private let projectsDir: URL
+    private let defaultProjectsDir: URL
+    /// Additional project directories from accounts with custom `.claude` config dirs.
+    private(set) var extraProjectsDirs: [URL] = []
     private let offsetsFileURL: URL
     /// Track the byte offset we've already read for each file (incremental reads).
     private var fileOffsets: [String: UInt64] = [:]
@@ -23,9 +25,21 @@ import Foundation
         return f
     }()
 
+    /// All project directories to scan (default + extras, deduplicated).
+    private var allProjectsDirs: [URL] {
+        var dirs = [defaultProjectsDir]
+        let defaultPath = defaultProjectsDir.standardizedFileURL.path
+        for dir in extraProjectsDirs {
+            if dir.standardizedFileURL.path != defaultPath {
+                dirs.append(dir)
+            }
+        }
+        return dirs
+    }
+
     init() {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        self.projectsDir = home.appendingPathComponent(".claude/projects", isDirectory: true)
+        self.defaultProjectsDir = home.appendingPathComponent(".claude/projects", isDirectory: true)
 
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = appSupport.appendingPathComponent("Clusage", isDirectory: true)
@@ -33,6 +47,16 @@ import Foundation
         self.offsetsFileURL = dir.appendingPathComponent("scanner-offsets.json")
 
         loadOffsets()
+    }
+
+    /// Update the set of extra project directories from account configurations.
+    func updateExtraDirectories(from accounts: [Account]) {
+        extraProjectsDirs = accounts.compactMap { account in
+            guard let dir = account.claudeConfigDir else { return nil }
+            let expanded = NSString(string: dir).expandingTildeInPath
+            return URL(fileURLWithPath: expanded, isDirectory: true)
+                .appendingPathComponent("projects", isDirectory: true)
+        }
     }
 
     /// Scan all session JSONL files and return new token events since last scan.
@@ -45,14 +69,10 @@ import Foundation
         }
 
         let fm = FileManager.default
-        guard fm.fileExists(atPath: projectsDir.path) else {
-            Log.tokens.debug("Projects directory not found: \(self.projectsDir.path)")
-            return []
-        }
-
         var results: [(model: String, date: String, usage: TokenUsage, newSession: Bool)] = []
 
         let jsonlFiles = findJSONLFiles()
+        guard !jsonlFiles.isEmpty else { return [] }
 
         for fileURL in jsonlFiles {
             let path = fileURL.path
@@ -122,13 +142,13 @@ import Foundation
     /// of a parent session. Uses cached summaries and only reads new bytes.
     func scanSessions(since cutoffDate: String) -> [SessionSummary] {
         let fm = FileManager.default
-        guard fm.fileExists(atPath: projectsDir.path) else { return [] }
-
-        // Only scan top-level session JSONL files (not subagents)
-        guard let projectDirs = fm.contentsOfDirectory(atPath: projectsDir.path, includingHidden: false) else { return [] }
 
         // Track which sessions we see this scan to prune stale cache entries
         var seenSessionIDs = Set<String>()
+
+        for projectsDir in allProjectsDirs {
+        guard fm.fileExists(atPath: projectsDir.path) else { continue }
+        guard let projectDirs = fm.contentsOfDirectory(atPath: projectsDir.path, includingHidden: false) else { continue }
 
         for projectName in projectDirs {
             let projectDir = projectsDir.appendingPathComponent(projectName)
@@ -188,6 +208,7 @@ import Foundation
                 }
             }
         }
+        } // end for projectsDir in allProjectsDirs
 
         // Prune cache entries for deleted files
         cachedSessions = cachedSessions.filter { seenSessionIDs.contains($0.key) }
@@ -297,10 +318,12 @@ import Foundation
 
     private func findJSONLFiles() -> [URL] {
         let fm = FileManager.default
-        guard let projectEnumerator = fm.contentsOfDirectory(atPath: projectsDir.path,
-                                                              includingHidden: false) else { return [] }
-
         var files: [URL] = []
+
+        for projectsDir in allProjectsDirs {
+        guard let projectEnumerator = fm.contentsOfDirectory(atPath: projectsDir.path,
+                                                              includingHidden: false) else { continue }
+
         for projectName in projectEnumerator {
             let projectDir = projectsDir.appendingPathComponent(projectName)
             guard let contents = fm.contentsOfDirectory(atPath: projectDir.path, includingHidden: false) else { continue }
@@ -319,6 +342,7 @@ import Foundation
                 }
             }
         }
+        } // end for projectsDir in allProjectsDirs
         return files
     }
 

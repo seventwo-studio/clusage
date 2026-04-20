@@ -207,7 +207,6 @@ struct AccountsPageView: View {
             defer { importingIDs.remove(credential.id) }
 
             do {
-                _ = try await APIClient.shared.validateToken(credential.accessToken)
                 let profile = try await APIClient.shared.fetchProfile(token: credential.accessToken)
                 let name = profile.account.email
                 accountStore.addAccount(
@@ -243,7 +242,6 @@ struct AccountsPageView: View {
             defer { isValidatingCustom = false }
 
             do {
-                _ = try await APIClient.shared.validateToken(token)
                 let profile = try await APIClient.shared.fetchProfile(token: token)
 
                 // Auto-detect keychain binding
@@ -273,6 +271,7 @@ private struct AccountRow: View {
     var onDelete: () -> Void
     @State private var showingRelinkSheet = false
     @State private var showingCredentialsPathSheet = false
+    @State private var showingClaudeConfigDirSheet = false
 
     private var isMenuBarAccount: Bool {
         accountStore.menuBarAccountID == account.id
@@ -309,6 +308,14 @@ private struct AccountRow: View {
 
                 if let customPath = account.credentialsFilePath {
                     Text(customPath)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+
+                if let configDir = account.claudeConfigDir {
+                    Text(configDir)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
@@ -367,6 +374,10 @@ private struct AccountRow: View {
                 showingCredentialsPathSheet = true
             }
 
+            Button("Set Claude Config Directory…") {
+                showingClaudeConfigDirSheet = true
+            }
+
             Button("Re-link Keychain Entry…") {
                 showingRelinkSheet = true
             }
@@ -382,6 +393,133 @@ private struct AccountRow: View {
         }
         .sheet(isPresented: $showingCredentialsPathSheet) {
             CredentialsPathSheet(account: account, accountStore: accountStore)
+        }
+        .sheet(isPresented: $showingClaudeConfigDirSheet) {
+            ClaudeConfigDirSheet(account: account, accountStore: accountStore)
+        }
+    }
+}
+
+/// Sheet that lets the user set a custom `.claude` config directory for an account.
+private struct ClaudeConfigDirSheet: View {
+    let account: Account
+    let accountStore: AccountStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var path: String = ""
+    @State private var validationStatus: ValidationStatus = .idle
+
+    private enum ValidationStatus: Equatable {
+        case idle
+        case valid
+        case invalid(String)
+    }
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Claude Config Directory")
+                .font(.title2.bold())
+
+            Text("Set the path to the `.claude` directory for **\(account.displayName)**. This is where Claude Code stores session data used for cost estimates.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    TextField("~/.claude", text: $path)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+
+                    Button("Browse…") { browseForDirectory() }
+                }
+
+                switch validationStatus {
+                case .idle:
+                    EmptyView()
+                case .valid:
+                    Label("Directory found — contains projects/", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.caption)
+                case .invalid(let message):
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+            }
+
+            HStack {
+                if account.claudeConfigDir != nil {
+                    Button("Reset to Default") {
+                        var updated = account
+                        updated.claudeConfigDir = nil
+                        accountStore.updateAccount(updated)
+                        dismiss()
+                    }
+                }
+
+                Spacer()
+
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+
+                Button("Save") { save() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 480)
+        .onAppear {
+            path = account.claudeConfigDir ?? ""
+        }
+        .onChange(of: path) {
+            validate()
+        }
+    }
+
+    private func validate() {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            validationStatus = .idle
+            return
+        }
+
+        let expanded = NSString(string: trimmed).expandingTildeInPath
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+
+        guard fm.fileExists(atPath: expanded, isDirectory: &isDir), isDir.boolValue else {
+            validationStatus = .invalid("Directory not found")
+            return
+        }
+
+        let projectsDir = URL(fileURLWithPath: expanded).appendingPathComponent("projects")
+        if fm.fileExists(atPath: projectsDir.path, isDirectory: &isDir), isDir.boolValue {
+            validationStatus = .valid
+        } else {
+            validationStatus = .invalid("Directory exists but has no projects/ subdirectory")
+        }
+    }
+
+    private func save() {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        var updated = account
+        updated.claudeConfigDir = trimmed.isEmpty ? nil : trimmed
+        accountStore.updateAccount(updated)
+        dismiss()
+    }
+
+    private func browseForDirectory() {
+        let panel = NSOpenPanel()
+        panel.title = "Select .claude Directory"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.showsHiddenFiles = true
+        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
+
+        if panel.runModal() == .OK, let url = panel.url {
+            path = url.path
         }
     }
 }
@@ -486,8 +624,9 @@ private struct RelinkKeychainView: View {
         error = nil
 
         Task { @MainActor in
+            let profile: ProfileResponse
             do {
-                _ = try await APIClient.shared.validateToken(credential.accessToken)
+                profile = try await APIClient.shared.fetchProfile(token: credential.accessToken)
             } catch {
                 self.error = "Token validation failed: \(error.localizedDescription)"
                 isValidating = false
@@ -495,18 +634,15 @@ private struct RelinkKeychainView: View {
             }
 
             if let expectedEmail = account.profile?.email,
-               let credentialEmail = credential.email,
-               credentialEmail != expectedEmail {
-                self.error = "This credential belongs to \(credentialEmail), not \(expectedEmail)."
+               profile.account.email != expectedEmail {
+                self.error = "This credential belongs to \(profile.account.email), not \(expectedEmail)."
                 isValidating = false
                 return
             }
 
-            if account.profile == nil, let email = credential.email {
-                var updated = account
-                updated.profile = Profile(email: email)
-                accountStore.updateAccount(updated)
-            }
+            var updated = account
+            updated.profile = Profile(from: profile)
+            accountStore.updateAccount(updated)
 
             accountStore.relinkKeychain(for: account, credential: credential)
             isValidating = false

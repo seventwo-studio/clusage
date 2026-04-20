@@ -55,14 +55,14 @@ final class AccountsViewModel {
         error = nil
 
         do {
-            _ = try await APIClient.shared.validateToken(token)
             let profile = try await APIClient.shared.fetchProfile(token: token)
 
             // Resolve keychain binding: use selected credential, or match against
             // already-detected credentials (avoids a new keychain scan + prompts)
+            let matchedCredential = detectedCredentials.first(where: { $0.accessToken == token })
             var keychainService = selectedKeychainServiceName
             if keychainService == nil {
-                keychainService = detectedCredentials.first(where: { $0.accessToken == token })?.serviceName
+                keychainService = matchedCredential?.serviceName
                 if let service = keychainService {
                     Log.accounts.info("Auto-detected keychain entry '\(service)' for manual token")
                 }
@@ -72,7 +72,9 @@ final class AccountsViewModel {
                 name: name,
                 token: token,
                 profile: Profile(from: profile),
-                keychainServiceName: keychainService
+                keychainServiceName: keychainService,
+                refreshToken: matchedCredential?.refreshToken,
+                tokenExpiresAt: matchedCredential?.expiresAt
             )
             Log.accounts.info("Account '\(name)' added successfully (keychain: \(keychainService ?? "none"))")
             newAccountName = ""
@@ -164,8 +166,6 @@ final class AccountsViewModel {
         var failedLabels: [String] = []
         for credential in uniqueImports {
             do {
-                // validateToken hits usage endpoint — confirms the token works
-                _ = try await APIClient.shared.validateToken(credential.accessToken)
                 let profile = try await APIClient.shared.fetchProfile(token: credential.accessToken)
                 let name = profile.account.email
                 accountStore.addAccount(
