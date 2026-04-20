@@ -47,7 +47,7 @@ struct ClusageApp: App {
                 updateChecker.startIfEnabled()
                 hotkeyManager.start { [openWindow] in
                     openWindow(id: "dashboard")
-                    NSApp.activate()
+                    bringDashboardToFront()
                 }
             }
         }

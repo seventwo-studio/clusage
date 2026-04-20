@@ -45,7 +45,7 @@ struct MenuBarView: View {
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                     Button("Get Started") {
-                        openWindow(id: "dashboard")
+                        openDashboard()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -58,7 +58,7 @@ struct MenuBarView: View {
 
             HStack(spacing: 8) {
                 Button {
-                    openWindow(id: "dashboard")
+                    openDashboard()
                 } label: {
                     Text("Open Dashboard")
                         .font(.callout.weight(.medium))
@@ -100,5 +100,19 @@ struct MenuBarView: View {
             .padding(.vertical, 10)
         }
         .frame(width: 320)
+    }
+
+    private func openDashboard() {
+        openWindow(id: "dashboard")
+        bringDashboardToFront()
+    }
+}
+
+/// Activate the app and move the Dashboard window to the current Space.
+@MainActor func bringDashboardToFront() {
+    NSApp.activate()
+    if let window = NSApp.windows.first(where: { $0.title == "Dashboard" }) {
+        window.collectionBehavior.insert(.moveToActiveSpace)
+        window.makeKeyAndOrderFront(nil)
     }
 }
