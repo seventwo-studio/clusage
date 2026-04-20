@@ -271,7 +271,13 @@ struct OnboardingView: View {
 
     private func backButton(to targetPage: Int) -> some View {
         Button {
-            withAnimation { page = targetPage }
+            withAnimation {
+                if targetPage <= 2 {
+                    showManualEntry = false
+                    viewModel.error = nil
+                }
+                page = targetPage
+            }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "arrow.left")
@@ -497,7 +503,7 @@ struct OnboardingView: View {
                 || viewModel.isValidating
             )
 
-            Text("Paste an OAuth token from your Anthropic account settings.")
+            Text("Paste an OAuth token from Claude Code's credentials file\nor Keychain.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
