@@ -214,7 +214,7 @@ struct SevenDayCard: View {
     var projection: WindowProjection?
 
     private var displayPercent: Double {
-        projection?.currentGranularUtilization() ?? window.percentUsed
+        window.percentUsed
     }
 
     private var gaugeColor: Color {
@@ -236,13 +236,8 @@ struct SevenDayCard: View {
                 Gauge(value: displayPercent / 100) {
                     EmptyView()
                 } currentValueLabel: {
-                    if projection != nil {
-                        Text(Formatting.percent(displayPercent))
-                            .font(.system(.title2, design: .rounded, weight: .bold).monospacedDigit())
-                    } else {
-                        Text("\(Int(displayPercent))%")
-                            .font(.system(.title, design: .rounded, weight: .bold).monospacedDigit())
-                    }
+                    Text("\(Int(displayPercent))%")
+                        .font(.system(.title, design: .rounded, weight: .bold).monospacedDigit())
                 }
                 .gaugeStyle(.accessoryCircular)
                 .tint(gaugeColor.gradient)
