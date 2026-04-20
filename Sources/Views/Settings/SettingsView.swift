@@ -98,24 +98,10 @@ struct SettingsView: View {
                         set: { updateChecker.autoCheck = $0 }
                     ))
 
-                    HStack {
-                        if let release = updateChecker.availableRelease {
-                            Label("Version \(release.version) available", systemImage: "arrow.down.circle.fill")
-                                .foregroundStyle(.blue)
-
-                            Spacer()
-
-                            Button("Skip") {
-                                updateChecker.skipCurrentUpdate()
-                            }
-                            .font(.caption)
-
-                            Button("Download") {
-                                openURL(release.htmlURL)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        } else {
+                    if let release = updateChecker.availableRelease {
+                        updateAvailableRow(checker: updateChecker, release: release)
+                    } else {
+                        HStack {
                             Text(updateChecker.isChecking ? "Checking…" : "You're up to date")
                                 .foregroundStyle(.secondary)
 
@@ -267,6 +253,71 @@ struct SettingsView: View {
             }
         } message: {
             Text("This will delete all accounts, tokens, usage data, and settings. This cannot be undone.")
+        }
+    }
+
+    // MARK: - Update UI
+
+    @ViewBuilder
+    private func updateAvailableRow(checker: UpdateChecker, release: UpdateChecker.Release) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label("Version \(release.version) available", systemImage: "arrow.down.circle.fill")
+                    .foregroundStyle(.blue)
+
+                Spacer()
+
+                switch checker.installState {
+                case .idle:
+                    Button("Skip") {
+                        checker.skipCurrentUpdate()
+                    }
+                    .font(.caption)
+
+                    if release.dmgURL != nil {
+                        Button("Install") {
+                            Task { await checker.downloadAndInstall() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    } else {
+                        Button("Open Release") { openURL(release.htmlURL) }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                    }
+                case .downloading, .verifying, .installing:
+                    ProgressView().controlSize(.small)
+                case .failed:
+                    Button("Retry") {
+                        checker.resetInstallState()
+                        Task { await checker.downloadAndInstall() }
+                    }
+                    .controlSize(.small)
+                }
+            }
+
+            switch checker.installState {
+            case .idle:
+                EmptyView()
+            case .downloading(let fraction):
+                ProgressView(value: fraction) {
+                    Text("Downloading… \(Int(fraction * 100))%")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            case .verifying:
+                Text("Verifying signature…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .installing:
+                Text("Installing — the app will restart shortly.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .failed(let message):
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
         }
     }
 

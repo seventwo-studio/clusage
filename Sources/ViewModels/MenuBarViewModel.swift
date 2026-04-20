@@ -5,11 +5,18 @@ final class MenuBarViewModel {
     let accountStore: AccountStore
     var poller: UsagePoller?
     var momentumProvider: MomentumProvider?
+    var updateChecker: UpdateChecker?
 
-    init(accountStore: AccountStore, poller: UsagePoller? = nil, momentumProvider: MomentumProvider? = nil) {
+    init(
+        accountStore: AccountStore,
+        poller: UsagePoller? = nil,
+        momentumProvider: MomentumProvider? = nil,
+        updateChecker: UpdateChecker? = nil
+    ) {
         self.accountStore = accountStore
         self.poller = poller
         self.momentumProvider = momentumProvider
+        self.updateChecker = updateChecker
     }
 
     var accounts: [Account] {

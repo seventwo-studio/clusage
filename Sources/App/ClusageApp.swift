@@ -22,10 +22,16 @@ struct ClusageApp: App {
                 MenuBarView(viewModel: menuBarViewModel)
             }
         } label: {
-            MenuBarIcon(accountStore: accountStore)
+            MenuBarIcon(
+                accountStore: accountStore,
+                hasUpdate: updateChecker.availableRelease != nil
+            )
             .onAppear {
                 if menuBarViewModel == nil {
-                    menuBarViewModel = MenuBarViewModel(accountStore: accountStore)
+                    menuBarViewModel = MenuBarViewModel(
+                        accountStore: accountStore,
+                        updateChecker: updateChecker
+                    )
                     dashboardViewModel = DashboardViewModel(
                         accountStore: accountStore,
                         historyStore: historyStore
@@ -44,6 +50,10 @@ struct ClusageApp: App {
                 tokenUsageStore.refreshSessions()
                 startPolling()
                 observeAppLifecycle()
+                UpdateNotifier.configure()
+                updateChecker.onUpdateAvailable = { release in
+                    UpdateNotifier.notify(version: release.version)
+                }
                 updateChecker.startIfEnabled()
                 hotkeyManager.start { [openWindow] in
                     openWindow(id: "dashboard")

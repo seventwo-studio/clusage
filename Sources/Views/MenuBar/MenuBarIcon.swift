@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MenuBarIcon: View {
     let accountStore: AccountStore
+    var hasUpdate: Bool = false
     private var primary: Account? {
         accountStore.menuBarAccount
     }
@@ -101,6 +102,21 @@ struct MenuBarIcon: View {
                     y: dotCenter.y - dotRadius,
                     width: dotRadius * 2,
                     height: dotRadius * 2
+                ))
+                cg.fillPath()
+            }
+
+            // Update-available badge (top-left). Drawn as a filled dot with a hollow
+            // ring so it reads as a distinct "new" indicator alongside the rings.
+            if hasUpdate {
+                let badgeRadius: CGFloat = 2
+                let badgeCenter = CGPoint(x: badgeRadius + 0.5, y: size - badgeRadius - 0.5)
+                cg.setFillColor(CGColor(gray: 0, alpha: 1))
+                cg.addEllipse(in: CGRect(
+                    x: badgeCenter.x - badgeRadius,
+                    y: badgeCenter.y - badgeRadius,
+                    width: badgeRadius * 2,
+                    height: badgeRadius * 2
                 ))
                 cg.fillPath()
             }

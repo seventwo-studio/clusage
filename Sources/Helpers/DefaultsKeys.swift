@@ -27,6 +27,7 @@ enum DefaultsKeys {
     static let lastUpdateCheck = "clusage.update.lastCheck"
     static let skipVersion = "clusage.update.skipVersion"
     static let autoCheckUpdates = "clusage.update.autoCheck"
+    static let lastNotifiedVersion = "clusage.update.lastNotifiedVersion"
 
     // MARK: - Keyboard Shortcut
 

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 @MainActor @Observable
@@ -5,11 +6,26 @@ final class UpdateChecker {
     struct Release: Sendable {
         let version: String
         let htmlURL: URL
+        /// URL of the Clusage.dmg asset, if present on the release.
+        let dmgURL: URL?
+    }
+
+    enum InstallState: Equatable {
+        case idle
+        case downloading(progress: Double)
+        case verifying
+        case installing
+        case failed(String)
     }
 
     private(set) var availableRelease: Release?
     private(set) var isChecking = false
     private(set) var lastError: String?
+    private(set) var installState: InstallState = .idle
+
+    /// Called the first time a given version shows up as available. Used to post a
+    /// user notification. Set by ClusageApp.
+    var onUpdateAvailable: (@MainActor (Release) -> Void)?
 
     private var timerTask: Task<Void, Never>?
     private static let checkInterval: TimeInterval = 6 * 60 * 60 // 6 hours
@@ -63,7 +79,12 @@ final class UpdateChecker {
                     availableRelease = nil
                 } else {
                     Log.update.info("Update available: \(release.version) (current: \(self.currentVersion))")
+                    let isNew = availableRelease?.version != release.version
                     availableRelease = release
+                    if isNew, UserDefaults.standard.string(forKey: DefaultsKeys.lastNotifiedVersion) != release.version {
+                        UserDefaults.standard.set(release.version, forKey: DefaultsKeys.lastNotifiedVersion)
+                        onUpdateAvailable?(release)
+                    }
                 }
             } else {
                 Log.update.info("Already on latest version \(self.currentVersion)")
@@ -82,6 +103,79 @@ final class UpdateChecker {
         Log.update.info("User skipped version \(release.version)")
     }
 
+    // MARK: - Install
+
+    /// Download the DMG for the current available release, verify it, and schedule an
+    /// in-place swap + relaunch. The app will terminate at the end.
+    func downloadAndInstall() async {
+        guard let release = availableRelease else { return }
+        guard let dmgURL = release.dmgURL else {
+            installState = .failed("This release does not include a direct download.")
+            return
+        }
+
+        installState = .downloading(progress: 0)
+        Log.update.info("Starting in-place install of \(release.version) from \(dmgURL)")
+
+        do {
+            let localDMG = try await Installer.downloadDMG(
+                from: dmgURL,
+                version: release.version,
+                onProgress: { [weak self] fraction in
+                    guard let self else { return }
+                    // Only bump UI if still in downloading state
+                    if case .downloading = self.installState {
+                        self.installState = .downloading(progress: fraction)
+                    }
+                }
+            )
+
+            installState = .verifying
+
+            let mountPoint = try Installer.mountDMG(at: localDMG)
+            let newApp = mountPoint.appendingPathComponent("Clusage.app")
+
+            guard FileManager.default.fileExists(atPath: newApp.path) else {
+                Installer.unmount(mountPoint)
+                throw Installer.Error(message: "Clusage.app not found inside DMG")
+            }
+
+            do {
+                try Installer.verify(appAt: newApp)
+            } catch {
+                Installer.unmount(mountPoint)
+                throw error
+            }
+
+            let destination = Installer.currentBundleURL
+            guard FileManager.default.isWritableFile(atPath: destination.deletingLastPathComponent().path) else {
+                Installer.unmount(mountPoint)
+                throw Installer.Error(message: "Cannot write to \(destination.deletingLastPathComponent().path). Please download manually.")
+            }
+
+            installState = .installing
+
+            try Installer.scheduleSwapAndRelaunch(
+                source: newApp,
+                destination: destination,
+                mountPoint: mountPoint,
+                dmg: localDMG
+            )
+
+            // Allow the spawned script a moment to reach its wait loop, then quit.
+            try? await Task.sleep(for: .milliseconds(200))
+            Log.update.info("Terminating app to complete install")
+            NSApp.terminate(nil)
+        } catch {
+            Log.update.error("Install failed: \(error.localizedDescription)")
+            installState = .failed(error.localizedDescription)
+        }
+    }
+
+    func resetInstallState() {
+        installState = .idle
+    }
+
     // MARK: - Private
 
     private func schedulePeriodicCheck() {
@@ -95,9 +189,15 @@ final class UpdateChecker {
         }
     }
 
+    private struct GitHubAsset: Decodable, Sendable {
+        let name: String
+        let browser_download_url: String
+    }
+
     private struct GitHubRelease: Decodable, Sendable {
         let tag_name: String
         let html_url: String
+        let assets: [GitHubAsset]
     }
 
     private func fetchLatestRelease() async throws -> Release {
@@ -120,7 +220,11 @@ final class UpdateChecker {
             throw URLError(.badURL)
         }
 
-        return Release(version: version, htmlURL: htmlURL)
+        let dmgURL = ghRelease.assets
+            .first(where: { $0.name.lowercased().hasSuffix(".dmg") })
+            .flatMap { URL(string: $0.browser_download_url) }
+
+        return Release(version: version, htmlURL: htmlURL, dmgURL: dmgURL)
     }
 
     /// Semantic version comparison: returns true if `a` is newer than `b`.

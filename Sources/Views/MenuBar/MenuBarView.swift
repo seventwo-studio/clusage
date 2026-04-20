@@ -53,6 +53,12 @@ struct MenuBarView: View {
                 .padding(20)
             }
 
+            if let checker = viewModel.updateChecker, let release = checker.availableRelease {
+                Divider()
+                    .padding(.horizontal, 12)
+                UpdateBannerRow(checker: checker, release: release)
+            }
+
             Divider()
                 .padding(.horizontal, 12)
 
@@ -105,6 +111,66 @@ struct MenuBarView: View {
     private func openDashboard() {
         openWindow(id: "dashboard")
         bringDashboardToFront()
+    }
+}
+
+private struct UpdateBannerRow: View {
+    @Bindable var checker: UpdateChecker
+    let release: UpdateChecker.Release
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.down.circle.fill")
+                .foregroundStyle(.blue)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Update available")
+                    .font(.caption.weight(.semibold))
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            actionButton
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private var subtitle: String {
+        switch checker.installState {
+        case .idle: "Version \(release.version)"
+        case .downloading(let p): "Downloading… \(Int(p * 100))%"
+        case .verifying: "Verifying signature…"
+        case .installing: "Installing…"
+        case .failed(let msg): msg
+        }
+    }
+
+    @ViewBuilder
+    private var actionButton: some View {
+        switch checker.installState {
+        case .idle:
+            if release.dmgURL != nil {
+                Button("Install") {
+                    Task { await checker.downloadAndInstall() }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            } else {
+                Button("Open") { openURL(release.htmlURL) }
+                    .controlSize(.small)
+            }
+        case .downloading, .verifying, .installing:
+            ProgressView().controlSize(.small)
+        case .failed:
+            Button("Retry") {
+                checker.resetInstallState()
+                Task { await checker.downloadAndInstall() }
+            }
+            .controlSize(.small)
+        }
     }
 }
 
