@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/lucasilverentand/clusage/compare/v0.1.6...v0.1.7) (2026-04-20)
+
+
+### Features
+
+* **updates:** in-app install and menubar update indicator ([#25](https://github.com/lucasilverentand/clusage/issues/25)) ([4460cdd](https://github.com/lucasilverentand/clusage/commit/4460cdd0ad9c680994c8b6189b081b1276a87809))
+
 ## [0.1.6](https://github.com/lucasilverentand/clusage/compare/v0.1.5...v0.1.6) (2026-04-20)
 
 
