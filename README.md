@@ -5,62 +5,35 @@
 <h1 align="center">Clusage</h1>
 
 <p align="center">
-  <strong>Claude usage tracking for your menu bar</strong><br>
-  Monitor your 5-hour and 7-day rate limit windows, see momentum and projections, and never get surprised by a rate limit again.
+  <strong>This project is archived and no longer maintained.</strong>
 </p>
 
-<p align="center">
-  <a href="https://github.com/seventwo-studio/clusage/releases/latest"><img src="https://img.shields.io/github/v/release/seventwo-studio/clusage?style=flat-square" alt="Latest Release"></a>
-  <img src="https://img.shields.io/badge/platform-macOS_26+-blue?style=flat-square" alt="macOS 26+">
-  <img src="https://img.shields.io/github/license/seventwo-studio/clusage?style=flat-square" alt="MIT License">
-</p>
+---
 
-## Install
+## Status
 
-### Homebrew (recommended)
+Clusage is no longer being developed. The repository is kept online as a read-only archive so existing installs keep working and the source remains available, but there will be no further releases, bug fixes, or support.
 
-```bash
-brew install seventwo-studio/tap/clusage
-```
+If you have it installed it will continue to run for as long as macOS and the underlying Claude APIs allow, but you should plan to migrate to one of the alternatives below.
 
-### Manual Download
+## Alternatives
 
-**[Download the latest release](https://github.com/seventwo-studio/clusage/releases/latest)**
+If you were using Clusage to track your Claude Code usage, these projects are actively maintained and cover most of the same ground:
 
-1. Download `Clusage.dmg` from the latest release
-2. Open the DMG and drag **Clusage** to your Applications folder
-3. Launch Clusage — it lives in your menu bar
-4. Follow the onboarding to import your Claude Code credentials from the keychain
+- **[ccusage](https://github.com/ryoppippi/ccusage)** — A CLI tool that analyzes your local Claude Code (and Codex CLI) JSONL logs. Fast, scriptable, and ships an MCP server. The closest match if you mostly want numbers in the terminal.
+- **[Claude Code Usage Monitor](https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor)** — A real-time TUI monitor with predictions and warnings. The closest match if you liked the always-visible momentum/projection view that Clusage provided.
 
-> Clusage requires macOS 26 (Tahoe) or later.
+Neither lives in the macOS menu bar the way Clusage did, but together they cover the underlying use case.
 
-## Features
+## Why archive?
 
-- **Real-time usage tracking** — 5-hour and 7-day rate limit windows with auto-polling
-- **Menu bar icon** — always-visible usage at a glance
-- **Momentum engine** — velocity, acceleration, ETA to ceiling, burst detection
-- **7-day projections** — projected usage at reset, daily budget, pacing status
-- **Granular 7-day tracking** — sub-integer interpolation between API ticks
-- **Smart polling** — adapts frequency based on activity, detects Claude processes, respects rate limits
-- **Dashboard** — detailed gauges, charts, and account info in a transparent window
-- **Widget** — macOS widget for quick usage checks
-- **Multi-account** — track multiple Claude accounts simultaneously
-- **ClaudeLine integration** — exposes `~/.claude/clusage-api.json` for [ClaudeLine](https://github.com/nicekid1/claudeline) status line components
+The interesting part of Clusage — pulling rate-limit data straight from Anthropic's API and turning it into momentum, projections, and ETA — leans on undocumented endpoints that shift without notice. Keeping that working is more maintenance than I can justify alongside other projects, and the alternatives above have caught up enough that a separate menu-bar app no longer earns its keep.
 
-## ClaudeLine Integration
+Thanks to everyone who used it, filed issues, and contributed.
 
-Clusage integrates with [ClaudeLine](https://github.com/nicekid1/claudeline) by writing usage data to `~/.claude/clusage-api.json`. ClaudeLine picks this up automatically — no extra configuration needed.
+## Source
 
-## Building from Source
-
-Requires [Tuist](https://tuist.io) and Xcode with Swift 6.2 support.
-
-```bash
-git clone https://github.com/seventwo-studio/clusage.git
-cd clusage
-tuist generate --no-open
-xcodebuild -scheme Clusage -configuration Release build
-```
+The source remains available under the MIT license. Feel free to fork it if you want to keep a menu-bar tracker alive — but please don't expect upstream updates from this repo.
 
 ## License
 
