@@ -27,7 +27,7 @@ Neither lives in the macOS menu bar the way Clusage did, but together they cover
 
 ## Why archive?
 
-The interesting part of Clusage — pulling rate-limit data straight from Anthropic's API and turning it into momentum, projections, and ETA — leans on undocumented endpoints that shift without notice. Keeping that working is more maintenance than I can justify alongside other projects, and the alternatives above have caught up enough that a separate menu-bar app no longer earns its keep.
+Clusage relied on Anthropic endpoints that turned out to be too unstable to depend on — connection issues kept breaking usage tracking in ways I couldn't reliably fix. At the same time, the alternatives above have become genuinely good, so a separate macOS menu-bar app no longer earns its keep.
 
 Thanks to everyone who used it, filed issues, and contributed.
 
