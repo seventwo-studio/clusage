@@ -198,15 +198,17 @@ jobs:
     needs: [release-please, build]
     if: needs.release-please.outputs.release_created
     runs-on: ubuntu-latest
+    environment: release
     permissions: {}
     steps:
       - name: Wait for release assets
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          REPO: ${{ github.repository }}
         run: |
-          TAG="${{ needs.release-please.outputs.tag_name }}"
           for i in $(seq 1 30); do
-            if gh release view "$TAG" --repo seventwo-studio/clusage --json assets -q '.assets[].name' | grep -q 'Clusage.dmg'; then
+            if gh release view "$TAG" --repo "$REPO" --json assets -q '.assets[].name' | grep -q 'Clusage.dmg'; then
               echo "DMG found in release assets"
               break
             fi
@@ -218,9 +220,10 @@ jobs:
         id: sha
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          REPO: ${{ github.repository }}
         run: |
-          TAG="${{ needs.release-please.outputs.tag_name }}"
-          gh release download "$TAG" --repo seventwo-studio/clusage --pattern 'Clusage.dmg' --dir .
+          gh release download "$TAG" --repo "$REPO" --pattern 'Clusage.dmg' --dir .
           SHA=$(sha256sum Clusage.dmg | awk '{print $1}')
           echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
           echo "SHA256: $SHA"
@@ -229,6 +232,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN secret is not set on the 'release' environment. Create a PAT with contents:write on seventwo-studio/homebrew-tap and add it."
+            exit 1
+          fi
           TAG="${{ needs.release-please.outputs.tag_name }}"
           VERSION="${TAG#v}"
           SHA="${{ steps.sha.outputs.sha256 }}"
