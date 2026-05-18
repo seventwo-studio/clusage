@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/lucasilverentand/clusage/compare/v0.1.7...v0.1.8) (2026-05-18)
+
+
+### Features
+
+* app auto-updater with Sparkle + Homebrew tap release flow ([#34](https://github.com/lucasilverentand/clusage/issues/34)) ([89645c8](https://github.com/lucasilverentand/clusage/commit/89645c87c35d3aca024924b8219a44017746f251))
+
 ## [0.1.7](https://github.com/lucasilverentand/clusage/compare/v0.1.6...v0.1.7) (2026-04-20)
 
 
