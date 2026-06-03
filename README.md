@@ -5,62 +5,29 @@
 <h1 align="center">Clusage</h1>
 
 <p align="center">
-  <strong>Claude usage tracking for your menu bar</strong><br>
-  Monitor your 5-hour and 7-day rate limit windows, see momentum and projections, and never get surprised by a rate limit again.
+  <strong>This project is archived and no longer maintained.</strong>
 </p>
 
-<p align="center">
-  <a href="https://github.com/seventwo-studio/clusage/releases/latest"><img src="https://img.shields.io/github/v/release/seventwo-studio/clusage?style=flat-square" alt="Latest Release"></a>
-  <img src="https://img.shields.io/badge/platform-macOS_26+-blue?style=flat-square" alt="macOS 26+">
-  <img src="https://img.shields.io/github/license/seventwo-studio/clusage?style=flat-square" alt="MIT License">
-</p>
+## Status
 
-## Install
+Clusage is archived. I'm focussing on other projects.
 
-### Homebrew (recommended)
+The source remains available under the MIT license, but there will be no further releases, fixes, or support from this repo. Existing installs may keep working for a while, but you should expect them to drift as macOS, Claude Code, and Anthropic APIs change.
 
-```bash
-brew install seventwo-studio/tap/clusage
-```
+## Alternatives
 
-### Manual Download
+If you were using Clusage to watch Claude Code usage, these projects are doing better:
 
-**[Download the latest release](https://github.com/seventwo-studio/clusage/releases/latest)**
+- **[ccusage](https://github.com/ryoppippi/ccusage)** - analyzes local agent CLI usage and costs, with current support for Claude Code and other coding agents.
+- **[Claude Code Usage Monitor](https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor)** - a real-time terminal monitor with predictions and warnings for Claude Code usage.
 
-1. Download `Clusage.dmg` from the latest release
-2. Open the DMG and drag **Clusage** to your Applications folder
-3. Launch Clusage — it lives in your menu bar
-4. Follow the onboarding to import your Claude Code credentials from the keychain
+Neither is the same macOS menu bar app, but both cover the underlying usage-tracking problem better than keeping Clusage alive here.
 
-> Clusage requires macOS 26 (Tahoe) or later.
+## Original Project
 
-## Features
+Clusage was a macOS menu bar app for monitoring Claude usage windows, momentum, projections, widgets, and multi-account usage.
 
-- **Real-time usage tracking** — 5-hour and 7-day rate limit windows with auto-polling
-- **Menu bar icon** — always-visible usage at a glance
-- **Momentum engine** — velocity, acceleration, ETA to ceiling, burst detection
-- **7-day projections** — projected usage at reset, daily budget, pacing status
-- **Granular 7-day tracking** — sub-integer interpolation between API ticks
-- **Smart polling** — adapts frequency based on activity, detects Claude processes, respects rate limits
-- **Dashboard** — detailed gauges, charts, and account info in a transparent window
-- **Widget** — macOS widget for quick usage checks
-- **Multi-account** — track multiple Claude accounts simultaneously
-- **ClaudeLine integration** — exposes `~/.claude/clusage-api.json` for [ClaudeLine](https://github.com/nicekid1/claudeline) status line components
-
-## ClaudeLine Integration
-
-Clusage integrates with [ClaudeLine](https://github.com/nicekid1/claudeline) by writing usage data to `~/.claude/clusage-api.json`. ClaudeLine picks this up automatically — no extra configuration needed.
-
-## Building from Source
-
-Requires [Tuist](https://tuist.io) and Xcode with Swift 6.2 support.
-
-```bash
-git clone https://github.com/seventwo-studio/clusage.git
-cd clusage
-tuist generate --no-open
-xcodebuild -scheme Clusage -configuration Release build
-```
+The code is kept for reference and for anyone who wants to fork it.
 
 ## License
 
